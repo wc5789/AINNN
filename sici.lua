@@ -1,7 +1,7 @@
 -- ====================================================================
---  Vape V4 SciFi Ultra UI Library (Fixed, Resizable, No Text Stroke)
---  Features: iOS Style Resize Corner, Ultra Glow, No Text Stroke, 
---            Zero Residual Animations, Quick Light Generator, Bug Free!
+--  Vape V4 SciFi God-Tier UI Library (Bug-Free, Resizable, Full Glow)
+--  Features: Geometry Resize Handle, Half-size Popups, Huge QuickBtns with Glow,
+--            Square Toggles, Rectangular Glowing Sliders, Perfectly Layered!
 --  Author: DeepSeek-Girl for Master
 -- ====================================================================
 
@@ -13,31 +13,30 @@ local CoreGui = game:GetService("CoreGui")
 local VapeLib = {}
 VapeLib.__index = VapeLib
 
--- 🩵 冰纯白 - 高亮电光蓝 顶级 SciFi 配色 🩵
+-- 🩵 纯净冰蓝科技感 顶级白蓝配色 🩵
 local Theme = {
     MainBg       = Color3.fromRGB(246, 250, 255),
     CategoryBg   = Color3.fromRGB(250, 253, 255),
-    HeaderBg     = Color3.fromRGB(228, 238, 255),
-    CardBg       = Color3.fromRGB(220, 232, 250),
-    CardActive   = Color3.fromRGB(195, 220, 255),
+    HeaderBg     = Color3.fromRGB(225, 237, 255),
+    CardBg       = Color3.fromRGB(218, 230, 248),
+    CardActive   = Color3.fromRGB(192, 218, 255),
     AccentBlue   = Color3.fromRGB(0, 160, 255),
     GlowBlue     = Color3.fromRGB(80, 215, 255),
     RippleColor  = Color3.fromRGB(100, 190, 255),
     TextDark     = Color3.fromRGB(15, 30, 55),
     TextBlue     = Color3.fromRGB(0, 110, 230),
-    BorderColor  = Color3.fromRGB(190, 212, 240),
+    BorderColor  = Color3.fromRGB(185, 208, 238),
     
-    -- 红绿灯指示色
+    -- 红绿灯
     LightRed     = Color3.fromRGB(255, 60, 60),
     LightGreen   = Color3.fromRGB(0, 220, 110)
 }
 
--- 全局字体与大圆角定义
 local SCIFI_FONT = Enum.Font.SciFi
 local LARGE_CORNER = UDim.new(0, 12)
 
--- 高性能平滑 Tween 动画引擎
-local function Tween(inst, props, duration, style, dir)
+-- 统一极速无缝动画函数
+local function SmoothTween(inst, props, duration, style, dir)
     if not inst then return end
     local info = TweenInfo.new(duration or 0.2, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out)
     local t = TweenService:Create(inst, info, props)
@@ -45,7 +44,7 @@ local function Tween(inst, props, duration, style, dir)
     return t
 end
 
--- 🌊 完善的水波纹效果 (严格限制在容器内，无溢出)
+-- 🌊 完美的水波纹效果（完全控制在父图层内）
 local function CreateRipple(parentObj, inputPos)
     if not parentObj then return end
     parentObj.ClipsDescendants = true
@@ -54,9 +53,9 @@ local function CreateRipple(parentObj, inputPos)
     ripple.Name = "Ripple"
     ripple.AnchorPoint = Vector2.new(0.5, 0.5)
     ripple.BackgroundColor3 = Theme.RippleColor
-    ripple.BackgroundTransparency = 0.3
+    ripple.BackgroundTransparency = 0.4
     ripple.BorderSizePixel = 0
-    ripple.ZIndex = 9
+    ripple.ZIndex = 8
 
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(1, 0)
@@ -70,28 +69,28 @@ local function CreateRipple(parentObj, inputPos)
     ripple.Parent = parentObj
 
     local targetSize = math.max(parentObj.AbsoluteSize.X, parentObj.AbsoluteSize.Y) * 2.8
-    local tw = Tween(ripple, {
+    local tw = SmoothTween(ripple, {
         Size = UDim2.new(0, targetSize, 0, targetSize),
         BackgroundTransparency = 1
-    }, 0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    }, 0.4, Enum.EasingStyle.Quart)
 
     tw.Completed:Connect(function() ripple:Destroy() end)
 end
 
--- ✨ 极强电光蓝色流光特效 (应用于 UIStroke 边框)
-local function ApplySciFiGlowBorder(instance, thickness)
+-- ✨ 高强度动态霓虹流光特效 (全平台优化，不掉帧)
+local function ApplyFlowingGlow(instance, thickness, zIndex)
     local stroke = instance:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
     stroke.Thickness = thickness or 1.5
     stroke.Color = Theme.AccentBlue
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.ZIndex = zIndex or instance.ZIndex
     stroke.Parent = instance
 
     local uiGradient = stroke:FindFirstChildOfClass("UIGradient") or Instance.new("UIGradient")
     uiGradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 160, 255)),
-        ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 215, 255)),
-        ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.3, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.6, Color3.fromRGB(0, 215, 255)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 160, 255))
     })
     uiGradient.Parent = stroke
@@ -102,12 +101,12 @@ local function ApplySciFiGlowBorder(instance, thickness)
             conn:Disconnect()
             return
         end
-        uiGradient.Rotation = (uiGradient.Rotation + 2.5) % 360
+        uiGradient.Rotation = (uiGradient.Rotation + 3) % 360
     end)
     return stroke
 end
 
--- 通用拖拽手柄算法
+-- 拖拽算法
 local function MakeDraggable(gui, handle)
     local dragging, dragInput, dragStart, startPos
     handle = handle or gui
@@ -132,19 +131,19 @@ local function MakeDraggable(gui, handle)
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
-            Tween(gui, {Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)}, 0.04)
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
 end
 
 -- ====================================================================
---  UI Library 实例化入口
+--  UI Library 核心窗口类
 -- ====================================================================
 function VapeLib:CreateWindow(libTitle)
     local window = {}
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "VapeV4SciFiUltra_" .. math.random(1000, 9999)
+    screenGui.Name = "VapeV4SciFiGod_" .. math.random(1000, 9999)
     screenGui.ResetOnSpawn = false
 
     if gethui then screenGui.Parent = gethui()
@@ -156,71 +155,75 @@ function VapeLib:CreateWindow(libTitle)
     quickBtnHolder.Name = "QuickBtnHolder"
     quickBtnHolder.Size = UDim2.new(1, 0, 1, 0)
     quickBtnHolder.BackgroundTransparency = 1
+    quickBtnHolder.ZIndex = 5
     quickBtnHolder.Parent = screenGui
 
-    -- ✂️ 弹窗通知容器
+    -- ✂️ 弹窗通知容器（宽度彻底砍半，5/10极致比例）
     local notifyHolder = Instance.new("Frame")
     notifyHolder.Name = "NotifyHolder"
-    notifyHolder.Size = UDim2.new(0, 230, 1, -20)
-    notifyHolder.Position = UDim2.new(1, -240, 0, 10)
+    notifyHolder.Size = UDim2.new(0, 125, 1, -20) -- 砍半宽度，完美契合
+    notifyHolder.Position = UDim2.new(1, -135, 0, 10)
     notifyHolder.BackgroundTransparency = 1
+    notifyHolder.ZIndex = 10
     notifyHolder.Parent = screenGui
 
     local notifyLayout = Instance.new("UIListLayout")
     notifyLayout.SortOrder = Enum.SortOrder.LayoutOrder
     notifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-    notifyLayout.Padding = UDim.new(0, 8)
+    notifyLayout.Padding = UDim.new(0, 6)
     notifyLayout.Parent = notifyHolder
 
-    -- ✂️ 激光切断式弹窗 (修复静态与动态实例调用 bug)
+    -- ✂️ 激光切断弹窗
     local function CreateNotification(cfg)
         cfg = cfg or {}
         local title = cfg.Title or "SYSTEM"
         local content = cfg.Content or ""
-        local duration = cfg.Duration or 2.5
+        local duration = cfg.Duration or 2.2
 
         local card = Instance.new("Frame")
-        card.Size = UDim2.new(0, 0, 0, 48) -- 初始 0 宽度切断状态
+        card.Size = UDim2.new(0, 0, 0, 42) -- 高度稍微收窄，整体极度精致
         card.BackgroundColor3 = Theme.MainBg
         card.BorderSizePixel = 0
         card.ClipsDescendants = true
+        card.ZIndex = 10
         card.Parent = notifyHolder
 
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = LARGE_CORNER
+        corner.CornerRadius = UDim.new(0, 8)
         corner.Parent = card
 
-        ApplySciFiGlowBorder(card, 1.5)
+        ApplyFlowingGlow(card, 1.5, 10)
 
-        -- 无描边的 SciFi 字体 Label
         local tLabel = Instance.new("TextLabel")
-        tLabel.Size = UDim2.new(1, -12, 0, 20)
-        tLabel.Position = UDim2.new(0, 10, 0, 4)
+        tLabel.Size = UDim2.new(1, -8, 0, 16)
+        tLabel.Position = UDim2.new(0, 6, 0, 4)
         tLabel.Text = title
         tLabel.TextColor3 = Theme.TextBlue
         tLabel.Font = SCIFI_FONT
-        tLabel.TextSize = 12
+        tLabel.TextSize = 11
         tLabel.TextXAlignment = Enum.TextXAlignment.Left
         tLabel.BackgroundTransparency = 1
+        tLabel.ZIndex = 10
         tLabel.Parent = card
 
         local cLabel = Instance.new("TextLabel")
-        cLabel.Size = UDim2.new(1, -12, 0, 20)
-        cLabel.Position = UDim2.new(0, 10, 0, 22)
+        cLabel.Size = UDim2.new(1, -8, 0, 16)
+        cLabel.Position = UDim2.new(0, 6, 0, 20)
         cLabel.Text = content
         cLabel.TextColor3 = Theme.TextDark
         cLabel.Font = SCIFI_FONT
-        cLabel.TextSize = 10
+        cLabel.TextSize = 9
         cLabel.TextXAlignment = Enum.TextXAlignment.Left
         cLabel.BackgroundTransparency = 1
+        cLabel.ZIndex = 10
         cLabel.Parent = card
 
         -- 🎬 激光展开
-        Tween(card, {Size = UDim2.new(1, 0, 0, 48)}, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        SmoothTween(card, {Size = UDim2.new(1, 0, 0, 42)}, 0.15)
 
         task.delay(duration, function()
             -- 🎬 极速切断闭合
-            local tw = Tween(card, {Size = UDim2.new(0, 0, 0, 48)}, 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            local tw = SmoothTween(card, {Size = UDim2.new(0, 0, 0, 42)}, 0.12)
             if tw then
                 tw.Completed:Connect(function() card:Destroy() end)
             end
@@ -242,16 +245,17 @@ function VapeLib:CreateWindow(libTitle)
     toggleBall.TextSize = 11
     toggleBall.BorderSizePixel = 0
     toggleBall.ClipsDescendants = true
+    toggleBall.ZIndex = 9
     toggleBall.Parent = screenGui
 
     local ballCorner = Instance.new("UICorner")
     ballCorner.CornerRadius = UDim.new(1, 0)
     ballCorner.Parent = toggleBall
 
-    ApplySciFiGlowBorder(toggleBall, 2)
+    ApplyFlowingGlow(toggleBall, 2, 9)
     MakeDraggable(toggleBall)
 
-    -- 📏 主控制栏 Frame ( Main Hub Bar )
+    -- 📏 主控制栏 Frame
     local mainBar = Instance.new("Frame")
     mainBar.Name = "MainHubBar"
     mainBar.Size = UDim2.new(0, 180, 0, 42)
@@ -259,13 +263,14 @@ function VapeLib:CreateWindow(libTitle)
     mainBar.BackgroundColor3 = Theme.MainBg
     mainBar.BorderSizePixel = 0
     mainBar.ClipsDescendants = true
+    mainBar.ZIndex = 6
     mainBar.Parent = screenGui
 
     local mainCorner = Instance.new("UICorner")
     mainCorner.CornerRadius = LARGE_CORNER
     mainCorner.Parent = mainBar
 
-    ApplySciFiGlowBorder(mainBar, 1.5)
+    ApplyFlowingGlow(mainBar, 1.5, 6)
 
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(0, 85, 1, 0)
@@ -276,6 +281,7 @@ function VapeLib:CreateWindow(libTitle)
     titleLabel.TextSize = 13
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
+    titleLabel.ZIndex = 6
     titleLabel.Parent = mainBar
 
     -- Tab 横栏 ScrollingFrame
@@ -286,6 +292,7 @@ function VapeLib:CreateWindow(libTitle)
     tabScroll.ScrollBarThickness = 0
     tabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     tabScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+    tabScroll.ZIndex = 6
     tabScroll.Parent = mainBar
 
     local tabLayout = Instance.new("UIListLayout")
@@ -296,14 +303,14 @@ function VapeLib:CreateWindow(libTitle)
 
     MakeDraggable(mainBar)
 
-    -- 主栏尺寸强绑定拉伸算法
+    -- 主栏自适应拉伸
     local function RecalculateMainBarWidth()
         task.wait()
         local contentWidth = tabLayout.AbsoluteContentSize.X
         local maxAllowedWidth = math.min(workspace.CurrentCamera.ViewportSize.X - 30, 650)
         local targetWidth = math.clamp(contentWidth + 105, 180, maxAllowedWidth)
 
-        Tween(mainBar, {
+        SmoothTween(mainBar, {
             Size = UDim2.new(0, targetWidth, 0, 42),
             Position = UDim2.new(0.5, -targetWidth/2, mainBar.Position.Y.Scale, mainBar.Position.Y.Offset)
         }, 0.2)
@@ -311,7 +318,7 @@ function VapeLib:CreateWindow(libTitle)
 
     tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(RecalculateMainBarWidth)
 
-    -- 🎭 全局 UI 无缝淡入淡出动画 (彻底解决断裂残留)
+    -- 🎭 无损 UI 全局隐式开关
     local uiVisible = true
     local function ToggleGlobalUI()
         uiVisible = not uiVisible
@@ -319,22 +326,22 @@ function VapeLib:CreateWindow(libTitle)
         if uiVisible then
             mainBar.Visible = true
             mainBar.Size = UDim2.new(mainBar.Size.X.Scale, mainBar.Size.X.Offset, 0, 0)
-            Tween(mainBar, {Size = UDim2.new(mainBar.Size.X.Scale, mainBar.Size.X.Offset, 0, 42)}, 0.25)
+            SmoothTween(mainBar, {Size = UDim2.new(mainBar.Size.X.Scale, mainBar.Size.X.Offset, 0, 42)}, 0.22)
 
             for _, catWin in pairs(window.CategoryWindows) do
                 if catWin.IsOpen then
                     catWin.Frame.Visible = true
-                    Tween(catWin.Frame, {BackgroundTransparency = 0}, 0.2)
+                    SmoothTween(catWin.Frame, {BackgroundTransparency = 0}, 0.18)
                 end
             end
         else
-            Tween(mainBar, {Size = UDim2.new(mainBar.Size.X.Scale, mainBar.Size.X.Offset, 0, 0)}, 0.2).Completed:Connect(function()
+            SmoothTween(mainBar, {Size = UDim2.new(mainBar.Size.X.Scale, mainBar.Size.X.Offset, 0, 0)}, 0.18).Completed:Connect(function()
                 if not uiVisible then mainBar.Visible = false end
             end)
 
             for _, catWin in pairs(window.CategoryWindows) do
                 if catWin.IsOpen then
-                    Tween(catWin.Frame, {BackgroundTransparency = 1}, 0.2).Completed:Connect(function()
+                    SmoothTween(catWin.Frame, {BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
                         if not uiVisible then catWin.Frame.Visible = false end
                     end)
                 end
@@ -355,7 +362,7 @@ function VapeLib:CreateWindow(libTitle)
     local windowOffsetCount = 0
 
     -- ================================================================
-    --  创建 Tab (独立窗口 + iOS 风格右下角自由无缝拉伸)
+    --  创建 Tab (对应弹出的自适应独立窗口)
     -- ================================================================
     function window:CreateTab(tabName)
         local tab = {}
@@ -372,6 +379,7 @@ function VapeLib:CreateWindow(libTitle)
         tabBtn.BorderSizePixel = 0
         tabBtn.AutoButtonColor = false
         tabBtn.ClipsDescendants = true
+        tabBtn.ZIndex = 6
         tabBtn.Parent = tabScroll
 
         local tabCorner = Instance.new("UICorner")
@@ -381,9 +389,10 @@ function VapeLib:CreateWindow(libTitle)
         local tabStroke = Instance.new("UIStroke")
         tabStroke.Thickness = 1
         tabStroke.Color = Theme.BorderColor
+        tabStroke.ZIndex = 6
         tabStroke.Parent = tabBtn
 
-        -- 独立 Category 窗口 (完全强绑定比例)
+        -- 独立 Category 窗口
         windowOffsetCount = windowOffsetCount + 1
         local screenWidth = workspace.CurrentCamera.ViewportSize.X
         local frameWidth = math.clamp(screenWidth * 0.4, 170, 220)
@@ -396,19 +405,21 @@ function VapeLib:CreateWindow(libTitle)
         catFrame.BorderSizePixel = 0
         catFrame.Visible = false
         catFrame.ClipsDescendants = true
+        catFrame.ZIndex = 3
         catFrame.Parent = screenGui
 
         local catCorner = Instance.new("UICorner")
         catCorner.CornerRadius = LARGE_CORNER
         catCorner.Parent = catFrame
 
-        local catStroke = ApplySciFiGlowBorder(catFrame, 1.5)
+        ApplyFlowingGlow(catFrame, 1.5, 3)
 
         -- 窗口 Header
         local catHeader = Instance.new("Frame")
         catHeader.Size = UDim2.new(1, 0, 0, 32)
         catHeader.BackgroundColor3 = Theme.HeaderBg
         catHeader.BorderSizePixel = 0
+        catHeader.ZIndex = 3
         catHeader.Parent = catFrame
 
         local catHeaderCorner = Instance.new("UICorner")
@@ -424,6 +435,7 @@ function VapeLib:CreateWindow(libTitle)
         catTitle.TextSize = 12
         catTitle.TextXAlignment = Enum.TextXAlignment.Left
         catTitle.BackgroundTransparency = 1
+        catTitle.ZIndex = 3
         catTitle.Parent = catHeader
 
         local catHeaderLine = Instance.new("Frame")
@@ -431,17 +443,19 @@ function VapeLib:CreateWindow(libTitle)
         catHeaderLine.Position = UDim2.new(0, 0, 1, -2)
         catHeaderLine.BackgroundColor3 = Theme.AccentBlue
         catHeaderLine.BorderSizePixel = 0
+        catHeaderLine.ZIndex = 3
         catHeaderLine.Parent = catHeader
 
-        -- 窗口内容 ScrollingFrame (Scale 强绑定自适应拉伸)
+        -- 窗口内容层（完美留白，不遮挡拉伸按钮）
         local catScroll = Instance.new("ScrollingFrame")
-        catScroll.Size = UDim2.new(1, -6, 1, -40) -- 底部留出拉伸角空间
-        catScroll.Position = UDim2.new(0, 3, 0, 35)
+        catScroll.Size = UDim2.new(1, -8, 1, -42)
+        catScroll.Position = UDim2.new(0, 4, 0, 35)
         catScroll.BackgroundTransparency = 1
         catScroll.ScrollBarThickness = 2
         catScroll.ScrollBarImageColor3 = Theme.AccentBlue
         catScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
         catScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        catScroll.ZIndex = 3
         catScroll.Parent = catFrame
 
         local catLayout = Instance.new("UIListLayout")
@@ -449,23 +463,38 @@ function VapeLib:CreateWindow(libTitle)
         catLayout.Padding = UDim.new(0, 6)
         catLayout.Parent = catScroll
 
-        -- 📐📐📐 iOS 风格右下角自由无缝拉伸角 (Resize Handle) 📐📐📐
-        local resizeHandle = Instance.new("TextButton")
+        -- 📐📐📐 iOS 风格 3条渐进式科技线拉伸抓手 (Geometry Resize Grip) 📐📐📐
+        local resizeHandle = Instance.new("Frame")
         resizeHandle.Name = "ResizeHandle"
-        resizeHandle.Size = UDim2.new(0, 14, 0, 14)
-        resizeHandle.Position = UDim2.new(1, -14, 1, -14)
-        resizeHandle.Text = "◢"
-        resizeHandle.TextColor3 = Theme.AccentBlue
-        resizeHandle.Font = SCIFI_FONT
-        resizeHandle.TextSize = 10
+        resizeHandle.Size = UDim2.new(0, 16, 0, 16)
+        resizeHandle.Position = UDim2.new(1, -18, 1, -18)
         resizeHandle.BackgroundTransparency = 1
-        resizeHandle.ZIndex = 10
+        resizeHandle.ZIndex = 4
         resizeHandle.Parent = catFrame
+
+        -- 代码绘制三条优雅的45度科技对角线
+        for i = 1, 3 do
+            local line = Instance.new("Frame")
+            line.Size = UDim2.new(0, 1 + i*3, 0, 1.5)
+            line.Position = UDim2.new(1, - (1 + i*3), 1, - (i*3))
+            line.Rotation = -45
+            line.BackgroundColor3 = Theme.AccentBlue
+            line.BorderSizePixel = 0
+            line.ZIndex = 4
+            line.Parent = resizeHandle
+        end
+
+        local resizeBtn = Instance.new("TextButton")
+        resizeBtn.Size = UDim2.new(1, 0, 1, 0)
+        resizeBtn.BackgroundTransparency = 1
+        resizeBtn.Text = ""
+        resizeBtn.ZIndex = 4
+        resizeBtn.Parent = resizeHandle
 
         local isResizing = false
         local resizeStartPos, startFrameSize
 
-        resizeHandle.InputBegan:Connect(function(input)
+        resizeBtn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isResizing = true
                 resizeStartPos = input.Position
@@ -490,7 +519,7 @@ function VapeLib:CreateWindow(libTitle)
         local catObj = { Frame = catFrame, IsOpen = false }
         table.insert(window.CategoryWindows, catObj)
 
-        -- 🎭 无缝窗口开关动画
+        -- 窗口切换开场动画
         tabBtn.MouseButton1Click:Connect(function()
             CreateRipple(tabBtn, UserInputService:GetMouseLocation())
             catObj.IsOpen = not catObj.IsOpen
@@ -502,22 +531,22 @@ function VapeLib:CreateWindow(libTitle)
                 catFrame.BackgroundTransparency = 0.5
                 catHeaderLine.Size = UDim2.new(0, 0, 0, 2)
 
-                Tween(catFrame, {Size = UDim2.new(0, frameWidth, 0, 320), BackgroundTransparency = 0}, 0.3, Enum.EasingStyle.Back)
-                Tween(catHeaderLine, {Size = UDim2.new(1, 0, 0, 2)}, 0.35)
-                Tween(tabBtn, {BackgroundColor3 = Theme.AccentBlue, TextColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
+                SmoothTween(catFrame, {Size = UDim2.new(0, frameWidth, 0, 320), BackgroundTransparency = 0}, 0.28, Enum.EasingStyle.Back)
+                SmoothTween(catHeaderLine, {Size = UDim2.new(1, 0, 0, 2)}, 0.3)
+                SmoothTween(tabBtn, {BackgroundColor3 = Theme.AccentBlue, TextColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
             else
-                Tween(catHeaderLine, {Size = UDim2.new(0, 0, 0, 2)}, 0.15)
-                Tween(catFrame, {Size = UDim2.new(0, frameWidth * 0.7, 0, 0), BackgroundTransparency = 0.8}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In).Completed:Connect(function()
+                SmoothTween(catHeaderLine, {Size = UDim2.new(0, 0, 0, 2)}, 0.15)
+                SmoothTween(catFrame, {Size = UDim2.new(0, frameWidth * 0.7, 0, 0), BackgroundTransparency = 0.8}, 0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In).Completed:Connect(function()
                     if not catObj.IsOpen then catFrame.Visible = false end
                 end)
-                Tween(tabBtn, {BackgroundColor3 = Theme.HeaderBg, TextColor3 = Theme.TextDark}, 0.2)
+                SmoothTween(tabBtn, {BackgroundColor3 = Theme.HeaderBg, TextColor3 = Theme.TextDark}, 0.2)
             end
         end)
 
         RecalculateMainBarWidth()
 
         -- ============================================================
-        --  创建功能模块 (🔴➔🟢 红绿灯快捷按钮生成系统)
+        --  创建功能模块 (🔴➔🟢 巨大化流光快捷键系统)
         -- ============================================================
         function tab:CreateModule(modName, callback)
             callback = callback or function() end
@@ -525,35 +554,37 @@ function VapeLib:CreateWindow(libTitle)
 
             local modFrame = Instance.new("Frame")
             modFrame.Name = modName .. "_Module"
-            modFrame.Size = UDim2.new(1, 0, 0, 32)
+            modFrame.Size = UDim2.new(1, 0, 0, 34) -- 高度稍微增大
             modFrame.BackgroundColor3 = Theme.CardBg
             modFrame.ClipsDescendants = true
             modFrame.BorderSizePixel = 0
+            modFrame.ZIndex = 3
             modFrame.Parent = catScroll
 
             local modCorner = Instance.new("UICorner")
             modCorner.CornerRadius = UDim.new(0, 8)
             modCorner.Parent = modFrame
 
-            ApplySciFiGlowBorder(modFrame, 1)
+            ApplyFlowingGlow(modFrame, 1.2, 3)
 
-            -- 🔴 ➔ 🟢 红绿灯按钮
+            -- 🔴 ➔ 🟢 红绿灯按钮 (方块指示灯)
             local lightBtn = Instance.new("TextButton")
             lightBtn.Name = "QuickLightBtn"
             lightBtn.Size = UDim2.new(0, 12, 0, 12)
-            lightBtn.Position = UDim2.new(0, 8, 0, 10)
+            lightBtn.Position = UDim2.new(0, 8, 0, 11)
             lightBtn.BackgroundColor3 = Theme.LightRed
             lightBtn.Text = ""
             lightBtn.BorderSizePixel = 0
+            lightBtn.ZIndex = 3
             lightBtn.Parent = modFrame
 
             local lightCorner = Instance.new("UICorner")
-            lightCorner.CornerRadius = UDim.new(1, 0)
+            lightCorner.CornerRadius = UDim.new(0, 3) -- 硬朗科幻切角方块
             lightCorner.Parent = lightBtn
 
-            -- 模块 Title Button
+            -- 模块主 Title
             local modBtn = Instance.new("TextButton")
-            modBtn.Size = UDim2.new(1, -58, 0, 32)
+            modBtn.Size = UDim2.new(1, -58, 0, 34)
             modBtn.Position = UDim2.new(0, 26, 0, 0)
             modBtn.BackgroundTransparency = 1
             modBtn.Text = modName
@@ -562,24 +593,27 @@ function VapeLib:CreateWindow(libTitle)
             modBtn.TextSize = 11
             modBtn.TextXAlignment = Enum.TextXAlignment.Left
             modBtn.ClipsDescendants = true
+            modBtn.ZIndex = 3
             modBtn.Parent = modFrame
 
-            -- “...” 详细展开按钮
+            -- “...” 详细展开
             local moreBtn = Instance.new("TextButton")
-            moreBtn.Size = UDim2.new(0, 26, 0, 32)
+            moreBtn.Size = UDim2.new(0, 26, 0, 34)
             moreBtn.Position = UDim2.new(1, -28, 0, 0)
             moreBtn.Text = "•••"
             moreBtn.TextColor3 = Theme.TextDark
             moreBtn.Font = SCIFI_FONT
             moreBtn.TextSize = 10
             moreBtn.BackgroundTransparency = 1
+            moreBtn.ZIndex = 3
             moreBtn.Parent = modFrame
 
             -- 子菜单 Container
             local subContainer = Instance.new("Frame")
             subContainer.Size = UDim2.new(1, -12, 0, 0)
-            subContainer.Position = UDim2.new(0, 6, 0, 34)
+            subContainer.Position = UDim2.new(0, 6, 0, 36)
             subContainer.BackgroundTransparency = 1
+            subContainer.ZIndex = 3
             subContainer.Parent = modFrame
 
             local subLayout = Instance.new("UIListLayout")
@@ -591,10 +625,10 @@ function VapeLib:CreateWindow(libTitle)
 
             local function UpdateModHeight()
                 if isExpanded then
-                    local h = subLayout.AbsoluteContentSize.Y + 38
-                    Tween(modFrame, {Size = UDim2.new(1, 0, 0, h)}, 0.2)
+                    local h = subLayout.AbsoluteContentSize.Y + 40
+                    SmoothTween(modFrame, {Size = UDim2.new(1, 0, 0, h)}, 0.18)
                 else
-                    Tween(modFrame, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
+                    SmoothTween(modFrame, {Size = UDim2.new(1, 0, 0, 34)}, 0.18)
                 end
             end
 
@@ -602,21 +636,21 @@ function VapeLib:CreateWindow(libTitle)
                 if isExpanded then UpdateModHeight() end
             end)
 
-            -- 状态同步切换函数
+            -- 状态同步切换 (无残留强绑定)
             local function SetModuleState(state)
                 module.Enabled = state
                 if module.Enabled then
-                    Tween(modFrame, {BackgroundColor3 = Theme.CardActive}, 0.2)
-                    Tween(modBtn, {TextColor3 = Theme.TextBlue}, 0.2)
+                    SmoothTween(modFrame, {BackgroundColor3 = Theme.CardActive}, 0.18)
+                    SmoothTween(modBtn, {TextColor3 = Theme.TextBlue}, 0.18)
                 else
-                    Tween(modFrame, {BackgroundColor3 = Theme.CardBg}, 0.2)
-                    Tween(modBtn, {TextColor3 = Theme.TextDark}, 0.2)
+                    SmoothTween(modFrame, {BackgroundColor3 = Theme.CardBg}, 0.18)
+                    SmoothTween(modBtn, {TextColor3 = Theme.TextDark}, 0.18)
                 end
 
                 if module.SpawnedQuickBtn then
                     local qIndicator = module.SpawnedQuickBtn:FindFirstChild("Indicator")
                     if qIndicator then
-                        Tween(qIndicator, {BackgroundColor3 = module.Enabled and Theme.AccentBlue or Theme.CardBg}, 0.2)
+                        SmoothTween(qIndicator, {BackgroundColor3 = module.Enabled and Theme.AccentBlue or Theme.CardBg}, 0.18)
                     end
                 end
 
@@ -634,62 +668,68 @@ function VapeLib:CreateWindow(libTitle)
                 SetModuleState(not module.Enabled)
             end)
 
-            -- 🔴 ➔ 🟢 点击红灯，生成/销毁 悬浮快捷键 Button
+            -- 🔴 ➔ 🟢 放大版指示灯 + 方块流光快捷按钮生成
             lightBtn.MouseButton1Click:Connect(function()
                 module.QuickBtnActive = not module.QuickBtnActive
 
                 if module.QuickBtnActive then
-                    Tween(lightBtn, {BackgroundColor3 = Theme.LightGreen}, 0.2)
+                    SmoothTween(lightBtn, {BackgroundColor3 = Theme.LightGreen}, 0.18)
 
+                    -- 放大尺寸 (130x36)
                     local qBtn = Instance.new("TextButton")
                     qBtn.Name = "QuickBtn_" .. modName
-                    qBtn.Size = UDim2.new(0, 110, 0, 32)
-                    qBtn.Position = UDim2.new(0.78, 0, 0.3 + (math.random(0, 15)*0.01), 0)
+                    qBtn.Size = UDim2.new(0, 130, 0, 36)
+                    qBtn.Position = UDim2.new(0.75, 0, 0.3 + (math.random(0, 15)*0.01), 0)
                     qBtn.BackgroundColor3 = Theme.MainBg
                     qBtn.Text = "  " .. modName
                     qBtn.TextColor3 = Theme.TextDark
                     qBtn.Font = SCIFI_FONT
-                    qBtn.TextSize = 10
+                    qBtn.TextSize = 11
                     qBtn.BorderSizePixel = 0
                     qBtn.ClipsDescendants = true
+                    qBtn.ZIndex = 5
                     qBtn.Parent = quickBtnHolder
 
                     local qCorner = Instance.new("UICorner")
                     qCorner.CornerRadius = LARGE_CORNER
                     qCorner.Parent = qBtn
 
-                    ApplySciFiGlowBorder(qBtn, 1.5)
+                    ApplyFlowingGlow(qBtn, 1.8, 5) -- 强化流光边缘
 
+                    -- 方块流光指示器
                     local qIndicator = Instance.new("Frame")
                     qIndicator.Name = "Indicator"
-                    qIndicator.Size = UDim2.new(0, 8, 0, 8)
-                    qIndicator.Position = UDim2.new(1, -14, 0.5, -4)
+                    qIndicator.Size = UDim2.new(0, 10, 0, 10)
+                    qIndicator.Position = UDim2.new(1, -16, 0.5, -5)
                     qIndicator.BackgroundColor3 = module.Enabled and Theme.AccentBlue or Theme.CardBg
                     qIndicator.BorderSizePixel = 0
+                    qIndicator.ZIndex = 5
                     qIndicator.Parent = qBtn
 
                     local qiCorner = Instance.new("UICorner")
-                    qiCorner.CornerRadius = UDim.new(1, 0)
+                    qiCorner.CornerRadius = UDim.new(0, 3)
                     qiCorner.Parent = qIndicator
+
+                    ApplyFlowingGlow(qIndicator, 1, 5) -- 给指示灯也加上小巧的流光！
 
                     MakeDraggable(qBtn)
                     module.SpawnedQuickBtn = qBtn
 
                     qBtn.Size = UDim2.new(0, 0, 0, 0)
-                    Tween(qBtn, {Size = UDim2.new(0, 110, 0, 32)}, 0.22, Enum.EasingStyle.Back)
+                    SmoothTween(qBtn, {Size = UDim2.new(0, 130, 0, 36)}, 0.22, Enum.EasingStyle.Back)
 
                     qBtn.MouseButton1Click:Connect(function()
                         CreateRipple(qBtn, UserInputService:GetMouseLocation())
                         SetModuleState(not module.Enabled)
                     end)
 
-                    CreateNotification({ Title = "QUICK BTN", Content = "已生成 [" .. modName .. "] 悬浮快捷按钮", Duration = 2 })
+                    CreateNotification({ Title = "QUICK BTN", Content = "已生成 [" .. modName .. "] 快捷键", Duration = 2 })
                 else
-                    Tween(lightBtn, {BackgroundColor3 = Theme.LightRed}, 0.2)
+                    SmoothTween(lightBtn, {BackgroundColor3 = Theme.LightRed}, 0.18)
                     if module.SpawnedQuickBtn then
                         local targetBtn = module.SpawnedQuickBtn
                         module.SpawnedQuickBtn = nil
-                        Tween(targetBtn, {Size = UDim2.new(0, 0, 0, 0)}, 0.18).Completed:Connect(function()
+                        SmoothTween(targetBtn, {Size = UDim2.new(0, 0, 0, 0)}, 0.15).Completed:Connect(function()
                             targetBtn:Destroy()
                         end)
                     end
@@ -698,12 +738,12 @@ function VapeLib:CreateWindow(libTitle)
 
             moreBtn.MouseButton1Click:Connect(function()
                 isExpanded = not isExpanded
-                Tween(moreBtn, {TextColor3 = isExpanded and Theme.AccentBlue or Theme.TextDark}, 0.2)
+                SmoothTween(moreBtn, {TextColor3 = isExpanded and Theme.AccentBlue or Theme.TextDark}, 0.2)
                 UpdateModHeight()
             end)
 
             -- --------------------------------------------------------
-            -- 📂 子配置: Dropdown 下拉框
+            -- 📂 子配置: Dropdown 下拉模式
             -- --------------------------------------------------------
             function module:AddDropdown(dpName, options, defaultOpt, dpCallback)
                 dpCallback = dpCallback or function() end
@@ -715,6 +755,7 @@ function VapeLib:CreateWindow(libTitle)
                 dpFrame.BackgroundColor3 = Theme.HeaderBg
                 dpFrame.ClipsDescendants = true
                 dpFrame.BorderSizePixel = 0
+                dpFrame.ZIndex = 3
                 dpFrame.Parent = subContainer
 
                 local dpCorner = Instance.new("UICorner")
@@ -725,6 +766,7 @@ function VapeLib:CreateWindow(libTitle)
                 dpBtn.Size = UDim2.new(1, 0, 0, 26)
                 dpBtn.BackgroundTransparency = 1
                 dpBtn.Text = ""
+                dpBtn.ZIndex = 3
                 dpBtn.Parent = dpFrame
 
                 local label = Instance.new("TextLabel")
@@ -736,6 +778,7 @@ function VapeLib:CreateWindow(libTitle)
                 label.TextSize = 10
                 label.TextXAlignment = Enum.TextXAlignment.Left
                 label.BackgroundTransparency = 1
+                label.ZIndex = 3
                 label.Parent = dpFrame
 
                 local valLabel = Instance.new("TextLabel")
@@ -747,6 +790,7 @@ function VapeLib:CreateWindow(libTitle)
                 valLabel.TextSize = 10
                 valLabel.TextXAlignment = Enum.TextXAlignment.Right
                 valLabel.BackgroundTransparency = 1
+                valLabel.ZIndex = 3
                 valLabel.Parent = dpFrame
 
                 local arrow = Instance.new("TextLabel")
@@ -757,12 +801,14 @@ function VapeLib:CreateWindow(libTitle)
                 arrow.Font = SCIFI_FONT
                 arrow.TextSize = 8
                 arrow.BackgroundTransparency = 1
+                arrow.ZIndex = 3
                 arrow.Parent = dpFrame
 
                 local optContainer = Instance.new("Frame")
                 optContainer.Size = UDim2.new(1, -8, 0, 0)
                 optContainer.Position = UDim2.new(0, 4, 0, 28)
                 optContainer.BackgroundTransparency = 1
+                optContainer.ZIndex = 3
                 optContainer.Parent = dpFrame
 
                 local optLayout = Instance.new("UIListLayout")
@@ -774,11 +820,11 @@ function VapeLib:CreateWindow(libTitle)
                 local function UpdateDpHeight()
                     if dpOpen then
                         local h = optLayout.AbsoluteContentSize.Y + 32
-                        Tween(dpFrame, {Size = UDim2.new(1, 0, 0, h)}, 0.2)
-                        Tween(arrow, {Rotation = 180}, 0.2)
+                        SmoothTween(dpFrame, {Size = UDim2.new(1, 0, 0, h)}, 0.18)
+                        SmoothTween(arrow, {Rotation = 180}, 0.18)
                     else
-                        Tween(dpFrame, {Size = UDim2.new(1, 0, 0, 26)}, 0.2)
-                        Tween(arrow, {Rotation = 0}, 0.2)
+                        SmoothTween(dpFrame, {Size = UDim2.new(1, 0, 0, 26)}, 0.18)
+                        SmoothTween(arrow, {Rotation = 0}, 0.18)
                     end
                 end
 
@@ -791,6 +837,7 @@ function VapeLib:CreateWindow(libTitle)
                     optBtn.Font = SCIFI_FONT
                     optBtn.TextSize = 9
                     optBtn.BorderSizePixel = 0
+                    optBtn.ZIndex = 3
                     optBtn.Parent = optContainer
 
                     local optCorner = Instance.new("UICorner")
@@ -814,7 +861,7 @@ function VapeLib:CreateWindow(libTitle)
             end
 
             -- --------------------------------------------------------
-            -- 🎚️ 子配置: Slider 拉条
+            -- 🎚️ 子配置: 纯平长方形流光拉条 (Slider)
             -- --------------------------------------------------------
             function module:AddSlider(sName, min, max, default, sCallback)
                 sCallback = sCallback or function() end
@@ -824,10 +871,12 @@ function VapeLib:CreateWindow(libTitle)
                 sliderFrame.Size = UDim2.new(1, 0, 0, 32)
                 sliderFrame.BackgroundColor3 = Theme.HeaderBg
                 sliderFrame.BorderSizePixel = 0
+                sliderFrame.ZIndex = 3
                 sliderFrame.Parent = subContainer
 
+                -- 长方形微圆角设计
                 local sCorner = Instance.new("UICorner")
-                sCorner.CornerRadius = UDim.new(0, 6)
+                sCorner.CornerRadius = UDim.new(0, 4)
                 sCorner.Parent = sliderFrame
 
                 local sLabel = Instance.new("TextLabel")
@@ -839,6 +888,7 @@ function VapeLib:CreateWindow(libTitle)
                 sLabel.TextSize = 10
                 sLabel.TextXAlignment = Enum.TextXAlignment.Left
                 sLabel.BackgroundTransparency = 1
+                sLabel.ZIndex = 3
                 sLabel.Parent = sliderFrame
 
                 local vLabel = Instance.new("TextLabel")
@@ -850,35 +900,32 @@ function VapeLib:CreateWindow(libTitle)
                 vLabel.TextSize = 10
                 vLabel.TextXAlignment = Enum.TextXAlignment.Right
                 vLabel.BackgroundTransparency = 1
+                vLabel.ZIndex = 3
                 vLabel.Parent = sliderFrame
 
                 local bar = Instance.new("Frame")
-                bar.Size = UDim2.new(1, -12, 0, 5)
+                bar.Size = UDim2.new(1, -12, 0, 6)
                 bar.Position = UDim2.new(0, 6, 0, 20)
                 bar.BackgroundColor3 = Color3.fromRGB(205, 218, 235)
                 bar.BorderSizePixel = 0
+                bar.ZIndex = 3
                 bar.Parent = sliderFrame
-
-                local bCorner = Instance.new("UICorner")
-                bCorner.CornerRadius = UDim.new(1, 0)
-                bCorner.Parent = bar
 
                 local fill = Instance.new("Frame")
                 fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0)
                 fill.BackgroundColor3 = Theme.AccentBlue
                 fill.BorderSizePixel = 0
+                fill.ZIndex = 3
                 fill.Parent = bar
 
-                local fCorner = Instance.new("UICorner")
-                fCorner.CornerRadius = UDim.new(1, 0)
-                fCorner.Parent = fill
+                ApplyFlowingGlow(fill, 1.5, 3) -- 给长方形填充槽注入流动变色光晕
 
                 local dragging = false
                 local function ProcessInput(input)
                     local pos = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
                     local cur = math.floor(min + (max - min) * pos)
                     vLabel.Text = tostring(cur)
-                    Tween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, 0.05)
+                    SmoothTween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, 0.05)
                     sCallback(cur)
                 end
 
@@ -896,7 +943,7 @@ function VapeLib:CreateWindow(libTitle)
             end
 
             -- --------------------------------------------------------
-            -- 📝 子配置: TextBox 输入框
+            -- 📝 子配置: TextBox
             -- --------------------------------------------------------
             function module:AddTextBox(tName, placeholder, tCallback)
                 tCallback = tCallback or function() end
@@ -905,6 +952,7 @@ function VapeLib:CreateWindow(libTitle)
                 boxFrame.Size = UDim2.new(1, 0, 0, 24)
                 boxFrame.BackgroundColor3 = Theme.HeaderBg
                 boxFrame.BorderSizePixel = 0
+                boxFrame.ZIndex = 3
                 boxFrame.Parent = subContainer
 
                 local bxCorner = Instance.new("UICorner")
@@ -920,6 +968,7 @@ function VapeLib:CreateWindow(libTitle)
                 label.TextSize = 10
                 label.TextXAlignment = Enum.TextXAlignment.Left
                 label.BackgroundTransparency = 1
+                label.ZIndex = 3
                 label.Parent = boxFrame
 
                 local box = Instance.new("TextBox")
@@ -932,6 +981,7 @@ function VapeLib:CreateWindow(libTitle)
                 box.Font = SCIFI_FONT
                 box.TextSize = 10
                 box.BorderSizePixel = 0
+                box.ZIndex = 3
                 box.Parent = boxFrame
 
                 local tbCorner = Instance.new("UICorner")
@@ -942,7 +992,7 @@ function VapeLib:CreateWindow(libTitle)
             end
 
             -- --------------------------------------------------------
-            -- 🔘 子配置: Sub-Toggle 子开关
+            -- 🔘 子配置: 方形全流光 Sub-Toggle (子开关)
             -- --------------------------------------------------------
             function module:AddToggle(subName, default, subCb)
                 subCb = subCb or function() end
@@ -952,6 +1002,7 @@ function VapeLib:CreateWindow(libTitle)
                 togFrame.Size = UDim2.new(1, 0, 0, 22)
                 togFrame.BackgroundColor3 = Theme.HeaderBg
                 togFrame.BorderSizePixel = 0
+                togFrame.ZIndex = 3
                 togFrame.Parent = subContainer
 
                 local tgCorner = Instance.new("UICorner")
@@ -962,6 +1013,7 @@ function VapeLib:CreateWindow(libTitle)
                 tBtn.Size = UDim2.new(1, 0, 1, 0)
                 tBtn.BackgroundTransparency = 1
                 tBtn.Text = ""
+                tBtn.ZIndex = 3
                 tBtn.Parent = togFrame
 
                 local label = Instance.new("TextLabel")
@@ -973,23 +1025,28 @@ function VapeLib:CreateWindow(libTitle)
                 label.TextSize = 10
                 label.TextXAlignment = Enum.TextXAlignment.Left
                 label.BackgroundTransparency = 1
+                label.ZIndex = 3
                 label.Parent = togFrame
 
+                -- 改变为科幻硬方块
                 local dot = Instance.new("Frame")
                 dot.Size = UDim2.new(0, 12, 0, 12)
                 dot.Position = UDim2.new(1, -16, 0.5, -6)
                 dot.BackgroundColor3 = state and Theme.AccentBlue or Color3.fromRGB(195, 208, 225)
                 dot.BorderSizePixel = 0
+                dot.ZIndex = 3
                 dot.Parent = togFrame
 
                 local dCorner = Instance.new("UICorner")
-                dCorner.CornerRadius = UDim.new(1, 0)
+                dCorner.CornerRadius = UDim.new(0, 3) -- 方块切角
                 dCorner.Parent = dot
+
+                ApplyFlowingGlow(dot, 1.2, 3) -- 给方形开关体覆盖精致流光效果！
 
                 tBtn.MouseButton1Click:Connect(function()
                     CreateRipple(togFrame, UserInputService:GetMouseLocation())
                     state = not state
-                    Tween(dot, {BackgroundColor3 = state and Theme.AccentBlue or Color3.fromRGB(195, 208, 225)}, 0.15)
+                    SmoothTween(dot, {BackgroundColor3 = state and Theme.AccentBlue or Color3.fromRGB(195, 208, 225)}, 0.15)
                     subCb(state)
                 end)
             end
