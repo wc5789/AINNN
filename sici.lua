@@ -1,43 +1,61 @@
 -- ====================================================================
---  SciFi VapeV4 Style UI Library
---  Design: Sharp Edges, White-Blue Sci-Fi Glow, Ultra Smooth Tweens
+--  Vape V4 Style White-Blue Sci-Fi UI Library (Mobile & PC Dynamic)
+--  Features: Spawning Windows per Tab, Flowing Light Effect, Pure White-Blue
 --  Author: DeepSeek-Girl for Master
 -- ====================================================================
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 
-local SciFiLib = {}
-SciFiLib.__index = SciFiLib
+local VapeLib = {}
+VapeLib.__index = VapeLib
 
--- 全局科技感主题配色
+-- 🩵 白蓝科技感顶级配色方案 🩵
 local Theme = {
-    Background = Color3.fromRGB(10, 13, 18),
-    Header = Color3.fromRGB(15, 20, 28),
-    Container = Color3.fromRGB(18, 24, 34),
-    FolderHeader = Color3.fromRGB(22, 30, 42),
-    ButtonUnactive = Color3.fromRGB(28, 38, 52),
-    AccentBlue = Color3.fromRGB(0, 170, 255),
-    GlowBlue = Color3.fromRGB(80, 210, 255),
-    TextWhite = Color3.fromRGB(240, 245, 255),
-    TextDark = Color3.fromRGB(140, 155, 175),
-    BorderColor = Color3.fromRGB(35, 50, 70),
-    BorderActive = Color3.fromRGB(0, 170, 255)
+    MainBg = Color3.fromRGB(245, 248, 255),        -- 冰纯白主体底色
+    CategoryBg = Color3.fromRGB(250, 252, 255),    -- 独立窗口纯白底色
+    HeaderBg = Color3.fromRGB(235, 242, 255),      -- 顶部高亮白蓝
+    CardBg = Color3.fromRGB(228, 236, 250),        -- 模块卡片未激活
+    CardActive = Color3.fromRGB(210, 230, 255),    -- 模块卡片激活
+    AccentBlue = Color3.fromRGB(0, 150, 255),      -- 电光科技蓝
+    GlowBlue = Color3.fromRGB(80, 200, 255),        -- 冰蓝高亮
+    TextDark = Color3.fromRGB(25, 40, 65),          -- 无描边的高级深蓝灰字体
+    TextBlue = Color3.fromRGB(0, 120, 235),        -- 蓝字高亮
+    BorderColor = Color3.fromRGB(205, 220, 245)    -- 细腻软边框
 }
 
--- 平滑动画辅助函数
-local function SmoothTween(instance, properties, duration, style, direction)
-    style = style or Enum.EasingStyle.Quart
-    direction = direction or Enum.EasingDirection.Out
-    duration = duration or 0.35
-    local tweenInfo = TweenInfo.new(duration, style, direction)
+-- 动画辅助
+local function Tween(instance, properties, duration, style, direction)
+    local tweenInfo = TweenInfo.new(duration or 0.25, style or Enum.EasingStyle.Quart, direction or Enum.EasingDirection.Out)
     local tween = TweenService:Create(instance, tweenInfo, properties)
     tween:Play()
     return tween
 end
 
--- 可拖拽效果
+-- 为边框或线条添加流畅的冰蓝“流光特效”
+local function AddFlowingLight(guiObject)
+    local uiGradient = Instance.new("UIGradient")
+    uiGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 150, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 150, 255))
+    })
+    uiGradient.Parent = guiObject
+
+    local speed = 2
+    local connection
+    connection = RunService.RenderStepped:Connect(function(dt)
+        if not guiObject or not guiObject.Parent then
+            connection:Disconnect()
+            return
+        end
+        uiGradient.Rotation = (uiGradient.Rotation + speed) % 360
+    end)
+end
+
+-- 拖拽算法
 local function MakeDraggable(gui, handle)
     local dragging, dragInput, dragStart, startPos
     handle = handle or gui
@@ -47,11 +65,8 @@ local function MakeDraggable(gui, handle)
             dragging = true
             dragStart = input.Position
             startPos = gui.Position
-            
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -65,85 +80,77 @@ local function MakeDraggable(gui, handle)
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
-            SmoothTween(gui, {Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)}, 0.1, Enum.EasingStyle.Linear)
+            Tween(gui, {Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)}, 0.08)
         end
     end)
 end
 
 -- ====================================================================
---  创建主窗口
+--  创建 UI 实例
 -- ====================================================================
-function SciFiLib:CreateWindow(titleText)
+function VapeLib:CreateWindow(libName)
     local window = {}
     
-    -- ScreenGui
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "SciFiVapeUI_" .. math.random(1000, 9999)
+    screenGui.Name = "VapeV4_WhiteSciFi_" .. math.random(1000, 9999)
     screenGui.ResetOnSpawn = false
-    
-    -- 兼容不同执行环境的 Parent 挂载
-    if gethui then
-        screenGui.Parent = gethui()
-    elseif syn and syn.protect_gui then
-        syn.protect_gui(screenGui)
-        screenGui.Parent = CoreGui
-    else
-        screenGui.Parent = CoreGui
-    end
 
-    -- 主悬浮框 (竖向 VapeV4 风格)
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 320, 0, 520)
-    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -260)
-    mainFrame.BackgroundColor3 = Theme.Background
-    mainFrame.BorderSizePixel = 0
-    mainFrame.ClipsDescendants = true
-    mainFrame.Parent = screenGui
-    
-    -- 强制直角硬朗科技线条
-    local mainBorder = Instance.new("UIStroke")
-    mainBorder.Thickness = 1.5
-    mainBorder.Color = Theme.BorderActive
-    mainBorder.Transparency = 0.2
-    mainBorder.Parent = mainFrame
+    if gethui then screenGui.Parent = gethui()
+    elseif syn and syn.protect_gui then syn.protect_gui(screenGui); screenGui.Parent = CoreGui
+    else screenGui.Parent = CoreGui end
 
-    -- 顶部标题栏
-    local headerFrame = Instance.new("Frame")
-    headerFrame.Name = "Header"
-    headerFrame.Size = UDim2.new(1, 0, 0, 45)
-    headerFrame.BackgroundColor3 = Theme.Header
-    headerFrame.BorderSizePixel = 0
-    headerFrame.Parent = mainFrame
+    -- 移动端悬浮开关球 (Mobile Floating Toggle Button)
+    local toggleBall = Instance.new("TextButton")
+    toggleBall.Name = "VapeToggleBall"
+    toggleBall.Size = UDim2.new(0, 45, 0, 45)
+    toggleBall.Position = UDim2.new(0.05, 0, 0.15, 0)
+    toggleBall.BackgroundColor3 = Theme.MainBg
+    toggleBall.Text = "VAPE"
+    toggleBall.TextColor3 = Theme.TextBlue
+    toggleBall.Font = Enum.Font.GothamBold
+    toggleBall.TextSize = 11
+    toggleBall.BorderSizePixel = 0
+    toggleBall.Parent = screenGui
 
-    local headerLine = Instance.new("Frame")
-    headerLine.Size = UDim2.new(1, 0, 0, 2)
-    headerLine.Position = UDim2.new(0, 0, 1, -2)
-    headerLine.BackgroundColor3 = Theme.AccentBlue
-    headerLine.BorderSizePixel = 0
-    headerLine.Parent = headerFrame
+    local ballStroke = Instance.new("UIStroke")
+    ballStroke.Thickness = 2
+    ballStroke.Color = Theme.AccentBlue
+    ballStroke.Parent = toggleBall
+    AddFlowingLight(ballStroke) -- 赋予悬浮球流光效果
+    MakeDraggable(toggleBall)
+
+    -- 主控制栏 Frame ( Main Hub Bar )
+    local mainBar = Instance.new("Frame")
+    mainBar.Name = "MainHubBar"
+    mainBar.Size = UDim2.new(0, math.min(ScreenGui and 340 or 340, workspace.CurrentCamera.ViewportSize.X - 20), 0, 45)
+    mainBar.Position = UDim2.new(0.5, -170, 0.05, 0)
+    mainBar.BackgroundColor3 = Theme.MainBg
+    mainBar.BorderSizePixel = 0
+    mainBar.Parent = screenGui
+
+    local mainStroke = Instance.new("UIStroke")
+    mainStroke.Thickness = 1.5
+    mainStroke.Color = Theme.AccentBlue
+    mainStroke.Parent = mainBar
+    AddFlowingLight(mainStroke) -- 主窗口边缘顶部冰蓝流光
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -20, 1, 0)
-    titleLabel.Position = UDim2.new(0, 15, 0, 0)
-    titleLabel.Text = string.upper(titleText or "VAPE v4 SCI-FI")
-    titleLabel.TextColor3 = Theme.TextWhite
-    titleLabel.TextSize = 16
+    titleLabel.Size = UDim2.new(0, 90, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.Text = libName or "VAPE v4"
+    titleLabel.TextColor3 = Theme.TextDark
     titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Parent = headerFrame
+    titleLabel.Parent = mainBar
 
-    -- 拖拽逻辑
-    MakeDraggable(mainFrame, headerFrame)
-
-    -- Tab 标签按钮栏 (Top/Side List)
+    -- Tab 放置横栏容器
     local tabContainer = Instance.new("Frame")
-    tabContainer.Name = "TabContainer"
-    tabContainer.Size = UDim2.new(1, -20, 0, 35)
-    tabContainer.Position = UDim2.new(0, 10, 0, 50)
+    tabContainer.Size = UDim2.new(1, -100, 1, -8)
+    tabContainer.Position = UDim2.new(0, 95, 0, 4)
     tabContainer.BackgroundTransparency = 1
-    tabContainer.Parent = mainFrame
+    tabContainer.Parent = mainBar
 
     local tabLayout = Instance.new("UIListLayout")
     tabLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -151,471 +158,389 @@ function SciFiLib:CreateWindow(titleText)
     tabLayout.Padding = UDim.new(0, 6)
     tabLayout.Parent = tabContainer
 
-    -- 主内容滚动区域
-    local contentContainer = Instance.new("Frame")
-    contentContainer.Name = "ContentContainer"
-    contentContainer.Size = UDim2.new(1, -20, 1, -95)
-    contentContainer.Position = UDim2.new(0, 10, 0, 90)
-    contentContainer.BackgroundTransparency = 1
-    contentContainer.Parent = mainFrame
+    MakeDraggable(mainBar)
 
-    -- 电影级震撼打开动画
-    mainFrame.Size = UDim2.new(0, 320, 0, 0)
-    mainFrame.BackgroundTransparency = 0.5
-    mainBorder.Transparency = 1
-    SmoothTween(mainFrame, {Size = UDim2.new(0, 320, 0, 520), BackgroundTransparency = 0}, 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    SmoothTween(mainBorder, {Transparency = 0.2}, 0.8)
+    -- 切换全局 UI 显示隐藏
+    local uiVisible = true
+    local function ToggleGlobalUI()
+        uiVisible = not uiVisible
+        mainBar.Visible = uiVisible
+        for _, catWin in pairs(window.CategoryWindows) do
+            if catWin.IsOpen then
+                catWin.Frame.Visible = uiVisible
+            end
+        end
+    end
 
-    window.Tabs = {}
-    window.ActiveTab = nil
+    toggleBall.MouseButton1Click:Connect(ToggleGlobalUI)
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if not gpe and input.KeyCode == Enum.KeyCode.RightControl then
+            ToggleGlobalUI()
+        end
+    end)
+
+    window.CategoryWindows = {}
+    local windowOffsetCount = 0
 
     -- ================================================================
-    --  创建 Tab 标签
+    --  创建 Tab，独立生成对应窗口 (Vape V4 核心机制)
     -- ================================================================
     function window:CreateTab(tabName)
         local tab = {}
         
-        -- Tab 切换按钮
+        -- 1. 主栏上的 Tab 按钮
         local tabBtn = Instance.new("TextButton")
-        tabBtn.Name = tabName .. "_Tab"
-        tabBtn.Size = UDim2.new(0, 90, 1, 0)
-        tabBtn.BackgroundColor3 = Theme.Container
+        tabBtn.Name = tabName .. "_TabBtn"
+        tabBtn.Size = UDim2.new(0, 68, 1, 0)
+        tabBtn.BackgroundColor3 = Theme.HeaderBg
         tabBtn.Text = tabName
         tabBtn.TextColor3 = Theme.TextDark
         tabBtn.Font = Enum.Font.GothamBold
-        tabBtn.TextSize = 12
-        tabBtn.AutoButtonColor = false
+        tabBtn.TextSize = 11
         tabBtn.BorderSizePixel = 0
+        tabBtn.AutoButtonColor = false
         tabBtn.Parent = tabContainer
 
-        local tabBorder = Instance.new("UIStroke")
-        tabBorder.Thickness = 1
-        tabBorder.Color = Theme.BorderColor
-        tabBorder.Parent = tabBtn
+        local tabStroke = Instance.new("UIStroke")
+        tabStroke.Thickness = 1
+        tabStroke.Color = Theme.BorderColor
+        tabStroke.Parent = tabBtn
 
-        -- 每一个 Tab 对应的 Page
-        local page = Instance.new("ScrollingFrame")
-        page.Name = tabName .. "_Page"
-        page.Size = UDim2.new(1, 0, 1, 0)
-        page.BackgroundTransparency = 1
-        page.ScrollBarThickness = 3
-        page.ScrollBarImageColor3 = Theme.AccentBlue
-        page.Visible = false
-        page.CanvasSize = UDim2.new(0, 0, 0, 0)
-        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        page.Parent = contentContainer
+        -- 2. 点击 Tab 独立生成的 Category 窗口 (适应手机宽度)
+        windowOffsetCount = windowOffsetCount + 1
+        local screenWidth = workspace.CurrentCamera.ViewportSize.X
+        local frameWidth = math.clamp(screenWidth * 0.42, 160, 220) -- 动态适配移动端
 
-        local pageLayout = Instance.new("UIListLayout")
-        pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        pageLayout.Padding = UDim.new(0, 10)
-        pageLayout.Parent = page
+        local catFrame = Instance.new("Frame")
+        catFrame.Name = tabName .. "_CategoryWindow"
+        catFrame.Size = UDim2.new(0, frameWidth, 0, 360)
+        -- 错开排布窗口，仿 Vape V4 布局
+        catFrame.Position = UDim2.new(0.05 + ((windowOffsetCount-1) * 0.18), 0, 0.18, 0)
+        catFrame.BackgroundColor3 = Theme.CategoryBg
+        catFrame.BorderSizePixel = 0
+        catFrame.Visible = false -- 默认未点开
+        catFrame.Parent = screenGui
 
-        local pagePadding = Instance.new("UIPadding")
-        pagePadding.PaddingRight = UDim.new(0, 4)
-        pagePadding.Parent = page
+        local catStroke = Instance.new("UIStroke")
+        catStroke.Thickness = 1.5
+        catStroke.Color = Theme.BorderColor
+        catStroke.Parent = catFrame
 
-        -- 激活 Tab 逻辑
-        local function ActivateTab()
-            for _, t in pairs(window.Tabs) do
-                t.Page.Visible = false
-                SmoothTween(t.Button, {BackgroundColor3 = Theme.Container, TextColor3 = Theme.TextDark}, 0.2)
-                t.Border.Color = Theme.BorderColor
-            end
-            page.Visible = true
-            SmoothTween(tabBtn, {BackgroundColor3 = Theme.FolderHeader, TextColor3 = Theme.GlowBlue}, 0.2)
-            tabBorder.Color = Theme.AccentBlue
-            window.ActiveTab = tab
-        end
+        -- 窗口 Header
+        local catHeader = Instance.new("Frame")
+        catHeader.Size = UDim2.new(1, 0, 0, 32)
+        catHeader.BackgroundColor3 = Theme.HeaderBg
+        catHeader.BorderSizePixel = 0
+        catHeader.Parent = catFrame
 
-        tabBtn.MouseButton1Click:Connect(ActivateTab)
+        local catTitle = Instance.new("TextLabel")
+        catTitle.Size = UDim2.new(1, -10, 1, 0)
+        catTitle.Position = UDim2.new(0, 10, 0, 0)
+        catTitle.Text = tabName
+        catTitle.TextColor3 = Theme.TextDark
+        catTitle.Font = Enum.Font.GothamBold
+        catTitle.TextSize = 12
+        catTitle.TextXAlignment = Enum.TextXAlignment.Left
+        catTitle.BackgroundTransparency = 1
+        catTitle.Parent = catHeader
 
-        -- 悬停动画
-        tabBtn.MouseEnter:Connect(function()
-            if window.ActiveTab ~= tab then
-                SmoothTween(tabBtn, {TextColor3 = Theme.TextWhite}, 0.2)
+        local catHeaderLine = Instance.new("Frame")
+        catHeaderLine.Size = UDim2.new(1, 0, 0, 2)
+        catHeaderLine.Position = UDim2.new(0, 0, 1, -2)
+        catHeaderLine.BackgroundColor3 = Theme.AccentBlue
+        catHeaderLine.BorderSizePixel = 0
+        catHeaderLine.Parent = catHeader
+
+        -- 窗口内容滚动层
+        local catScroll = Instance.new("ScrollingFrame")
+        catScroll.Size = UDim2.new(1, -8, 1, -38)
+        catScroll.Position = UDim2.new(0, 4, 0, 35)
+        catScroll.BackgroundTransparency = 1
+        catScroll.ScrollBarThickness = 2
+        catScroll.ScrollBarImageColor3 = Theme.AccentBlue
+        catScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        catScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        catScroll.Parent = catFrame
+
+        local catLayout = Instance.new("UIListLayout")
+        catLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        catLayout.Padding = UDim.new(0, 6)
+        catLayout.Parent = catScroll
+
+        MakeDraggable(catFrame, catHeader)
+
+        -- 独立窗口状态
+        local catObj = { Frame = catFrame, IsOpen = false }
+        table.insert(window.CategoryWindows, catObj)
+
+        -- Vape V4 Tab 点击核心逻辑：开关独立 Category 窗口
+        tabBtn.MouseButton1Click:Connect(function()
+            catObj.IsOpen = not catObj.IsOpen
+            if catObj.IsOpen then
+                catFrame.Visible = true
+                catFrame.Size = UDim2.new(0, frameWidth, 0, 0)
+                Tween(catFrame, {Size = UDim2.new(0, frameWidth, 0, 360)}, 0.35, Enum.EasingStyle.Back)
+                Tween(tabBtn, {BackgroundColor3 = Theme.AccentBlue, TextColor3 = Color3.fromRGB(255, 255, 255)}, 0.2)
+                catStroke.Color = Theme.AccentBlue
+            else
+                Tween(catFrame, {Size = UDim2.new(0, frameWidth, 0, 0)}, 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In).Completed:Connect(function()
+                    if not catObj.IsOpen then catFrame.Visible = false end
+                end)
+                Tween(tabBtn, {BackgroundColor3 = Theme.HeaderBg, TextColor3 = Theme.TextDark}, 0.2)
+                catStroke.Color = Theme.BorderColor
             end
         end)
-        tabBtn.MouseLeave:Connect(function()
-            if window.ActiveTab ~= tab then
-                SmoothTween(tabBtn, {TextColor3 = Theme.TextDark}, 0.2)
-            end
-        end)
-
-        tab.Button = tabBtn
-        tab.Border = tabBorder
-        tab.Page = page
-
-        -- 如果是第一个 Tab，默认激活
-        if #window.Tabs == 0 then
-            ActivateTab()
-        end
-        table.insert(window.Tabs, tab)
 
         -- ============================================================
-        --  创建折叠菜单 (Folder / Category)
+        --  在 Category 窗口内添加功能 Module (Button + "..." 扩展配置)
         -- ============================================================
-        function tab:CreateFolder(folderName)
-            local folder = {}
-            local expanded = true
+        function tab:CreateModule(modName, callback)
+            callback = callback or function() end
+            local module = { Enabled = false }
 
-            local folderFrame = Instance.new("Frame")
-            folderFrame.Name = folderName .. "_Folder"
-            folderFrame.Size = UDim2.new(1, 0, 0, 36) -- 动态伸缩高度
-            folderFrame.BackgroundColor3 = Theme.Container
-            folderFrame.ClipsDescendants = true
-            folderFrame.BorderSizePixel = 0
-            folderFrame.Parent = page
+            -- 功能模块外壳 Card
+            local modFrame = Instance.new("Frame")
+            modFrame.Name = modName .. "_Module"
+            modFrame.Size = UDim2.new(1, 0, 0, 30)
+            modFrame.BackgroundColor3 = Theme.CardBg
+            modFrame.ClipsDescendants = true
+            modFrame.BorderSizePixel = 0
+            modFrame.Parent = catScroll
 
-            local folderStroke = Instance.new("UIStroke")
-            folderStroke.Thickness = 1
-            folderStroke.Color = Theme.BorderColor
-            folderStroke.Parent = folderFrame
+            local modStroke = Instance.new("UIStroke")
+            modStroke.Thickness = 1
+            modStroke.Color = Theme.BorderColor
+            modStroke.Parent = modFrame
 
-            -- 折叠菜单头部
-            local folderHeader = Instance.new("TextButton")
-            folderHeader.Size = UDim2.new(1, 0, 0, 36)
-            folderHeader.BackgroundColor3 = Theme.FolderHeader
-            folderHeader.Text = ""
-            folderHeader.AutoButtonColor = false
-            folderHeader.BorderSizePixel = 0
-            folderHeader.Parent = folderFrame
+            -- 模块主 Button
+            local modBtn = Instance.new("TextButton")
+            modBtn.Size = UDim2.new(1, -28, 0, 30)
+            modBtn.BackgroundTransparency = 1
+            modBtn.Text = " " .. modName
+            modBtn.TextColor3 = Theme.TextDark
+            modBtn.Font = Enum.Font.GothamMedium
+            modBtn.TextSize = 11
+            modBtn.TextXAlignment = Enum.TextXAlignment.Left
+            modBtn.Parent = modFrame
 
-            local folderTitle = Instance.new("TextLabel")
-            folderTitle.Size = UDim2.new(1, -40, 1, 0)
-            folderTitle.Position = UDim2.new(0, 12, 0, 0)
-            folderTitle.Text = "📂  " .. folderName
-            folderTitle.TextColor3 = Theme.TextWhite
-            folderTitle.Font = Enum.Font.GothamBold
-            folderTitle.TextSize = 13
-            folderTitle.TextXAlignment = Enum.TextXAlignment.Left
-            folderTitle.BackgroundTransparency = 1
-            folderTitle.Parent = folderHeader
+            -- 右侧 “...” 展开详细配置按钮
+            local moreBtn = Instance.new("TextButton")
+            moreBtn.Size = UDim2.new(0, 26, 0, 30)
+            moreBtn.Position = UDim2.new(1, -26, 0, 0)
+            moreBtn.Text = "•••"
+            moreBtn.TextColor3 = Theme.TextDark
+            moreBtn.Font = Enum.Font.GothamBold
+            moreBtn.TextSize = 10
+            moreBtn.BackgroundTransparency = 1
+            moreBtn.Parent = modFrame
 
-            local arrowLabel = Instance.new("TextLabel")
-            arrowLabel.Size = UDim2.new(0, 30, 1, 0)
-            arrowLabel.Position = UDim2.new(1, -30, 0, 0)
-            arrowLabel.Text = "▼"
-            arrowLabel.TextColor3 = Theme.AccentBlue
-            arrowLabel.Font = Enum.Font.GothamBold
-            arrowLabel.TextSize = 11
-            arrowLabel.BackgroundTransparency = 1
-            arrowLabel.Parent = folderHeader
+            -- 展开详细配置的子容器
+            local subContainer = Instance.new("Frame")
+            subContainer.Size = UDim2.new(1, -8, 0, 0)
+            subContainer.Position = UDim2.new(0, 4, 0, 32)
+            subContainer.BackgroundTransparency = 1
+            subContainer.Parent = modFrame
 
-            -- 内部功能容器
-            local itemList = Instance.new("Frame")
-            itemList.Name = "ItemList"
-            itemList.Size = UDim2.new(1, -16, 0, 0)
-            itemList.Position = UDim2.new(0, 8, 0, 40)
-            itemList.BackgroundTransparency = 1
-            itemList.Parent = folderFrame
+            local subLayout = Instance.new("UIListLayout")
+            subLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            subLayout.Padding = UDim.new(0, 4)
+            subLayout.Parent = subContainer
 
-            local itemLayout = Instance.new("UIListLayout")
-            itemLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            itemLayout.Padding = UDim.new(0, 8)
-            itemLayout.Parent = itemList
+            local isExpanded = false
 
-            -- 自动计算文件夹展开高度
-            local function UpdateFolderSize()
-                if expanded then
-                    local contentHeight = itemLayout.AbsoluteContentSize.Y + 48
-                    SmoothTween(folderFrame, {Size = UDim2.new(1, 0, 0, contentHeight)}, 0.3)
-                    SmoothTween(arrowLabel, {Rotation = 0}, 0.3)
+            local function UpdateModHeight()
+                if isExpanded then
+                    local h = subLayout.AbsoluteContentSize.Y + 38
+                    Tween(modFrame, {Size = UDim2.new(1, 0, 0, h)}, 0.25)
                 else
-                    SmoothTween(folderFrame, {Size = UDim2.new(1, 0, 0, 36)}, 0.3)
-                    SmoothTween(arrowLabel, {Rotation = -90}, 0.3)
+                    Tween(modFrame, {Size = UDim2.new(1, 0, 0, 30)}, 0.25)
                 end
             end
 
-            itemLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                if expanded then UpdateFolderSize() end
+            subLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                if isExpanded then UpdateModHeight() end
             end)
 
-            folderHeader.MouseButton1Click:Connect(function()
-                expanded = not expanded
-                UpdateFolderSize()
+            -- 点击 Button 激活模块
+            modBtn.MouseButton1Click:Connect(function()
+                module.Enabled = not module.Enabled
+                if module.Enabled then
+                    Tween(modFrame, {BackgroundColor3 = Theme.CardActive}, 0.2)
+                    Tween(modBtn, {TextColor3 = Theme.TextBlue}, 0.2)
+                    modStroke.Color = Theme.AccentBlue
+                else
+                    Tween(modFrame, {BackgroundColor3 = Theme.CardBg}, 0.2)
+                    Tween(modBtn, {TextColor3 = Theme.TextDark}, 0.2)
+                    modStroke.Color = Theme.BorderColor
+                end
+                callback(module.Enabled)
             end)
 
-            -- ========================================================
-            --  创建功能模块 Button (支持点击 + 右侧“三个点”高级详细折叠配置)
-            -- ========================================================
-            function folder:CreateModule(modOptions)
-                local modName = modOptions.Name or "Feature"
-                local callback = modOptions.Callback or function() end
+            -- 点击 “...” 三个点平滑展开/折叠配置
+            moreBtn.MouseButton1Click:Connect(function()
+                isExpanded = not isExpanded
+                Tween(moreBtn, {TextColor3 = isExpanded and Theme.AccentBlue or Theme.TextDark}, 0.2)
+                UpdateModHeight()
+            end)
 
-                local module = { Toggled = false }
+            -- --------------------------------------------------------
+            -- 子配置 1: Slider 拉条
+            -- --------------------------------------------------------
+            function module:AddSlider(sName, min, max, default, sCallback)
+                sCallback = sCallback or function() end
+                local val = default or min
 
-                local modFrame = Instance.new("Frame")
-                modFrame.Name = modName .. "_Module"
-                modFrame.Size = UDim2.new(1, 0, 0, 32)
-                modFrame.BackgroundColor3 = Theme.ButtonUnactive
-                modFrame.ClipsDescendants = true
-                modFrame.BorderSizePixel = 0
-                modFrame.Parent = itemList
+                local sliderFrame = Instance.new("Frame")
+                sliderFrame.Size = UDim2.new(1, 0, 0, 34)
+                sliderFrame.BackgroundColor3 = Theme.HeaderBg
+                sliderFrame.BorderSizePixel = 0
+                sliderFrame.Parent = subContainer
 
-                local modStroke = Instance.new("UIStroke")
-                modStroke.Thickness = 1
-                modStroke.Color = Theme.BorderColor
-                modStroke.Parent = modFrame
+                local sLabel = Instance.new("TextLabel")
+                sLabel.Size = UDim2.new(0.6, 0, 0, 16)
+                sLabel.Position = UDim2.new(0, 4, 0, 2)
+                sLabel.Text = sName
+                sLabel.TextColor3 = Theme.TextDark
+                sLabel.Font = Enum.Font.Gotham
+                sLabel.TextSize = 10
+                sLabel.TextXAlignment = Enum.TextXAlignment.Left
+                sLabel.BackgroundTransparency = 1
+                sLabel.Parent = sliderFrame
 
-                -- 功能触发主按钮
-                local modBtn = Instance.new("TextButton")
-                modBtn.Size = UDim2.new(1, -35, 0, 32)
-                modBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                modBtn.BackgroundTransparency = 1
-                modBtn.Text = "  " .. modName
-                modBtn.TextColor3 = Theme.TextDark
-                modBtn.Font = Enum.Font.GothamMedium
-                modBtn.TextSize = 12
-                modBtn.TextXAlignment = Enum.TextXAlignment.Left
-                modBtn.Parent = modFrame
+                local vLabel = Instance.new("TextLabel")
+                vLabel.Size = UDim2.new(0.35, 0, 0, 16)
+                vLabel.Position = UDim2.new(0.6, 0, 0, 2)
+                vLabel.Text = tostring(val)
+                vLabel.TextColor3 = Theme.TextBlue
+                vLabel.Font = Enum.Font.GothamBold
+                vLabel.TextSize = 10
+                vLabel.TextXAlignment = Enum.TextXAlignment.Right
+                vLabel.BackgroundTransparency = 1
+                vLabel.Parent = sliderFrame
 
-                -- 右侧“三个点”按钮 (...) 打开详细参数菜单
-                local moreBtn = Instance.new("TextButton")
-                moreBtn.Size = UDim2.new(0, 30, 0, 32)
-                moreBtn.Position = UDim2.new(1, -30, 0, 0)
-                moreBtn.Text = "•••"
-                moreBtn.TextColor3 = Theme.TextDark
-                moreBtn.Font = Enum.Font.GothamBold
-                moreBtn.TextSize = 12
-                moreBtn.BackgroundTransparency = 1
-                moreBtn.Parent = modFrame
+                local bar = Instance.new("Frame")
+                bar.Size = UDim2.new(1, -8, 0, 5)
+                bar.Position = UDim2.new(0, 4, 0, 22)
+                bar.BackgroundColor3 = Color3.fromRGB(210, 220, 235)
+                bar.BorderSizePixel = 0
+                bar.Parent = sliderFrame
 
-                -- 三个点展开后的详细子配置容器
-                local subConfigFrame = Instance.new("Frame")
-                subConfigFrame.Size = UDim2.new(1, -12, 0, 0)
-                subConfigFrame.Position = UDim2.new(0, 6, 0, 36)
-                subConfigFrame.BackgroundTransparency = 1
-                subConfigFrame.Parent = modFrame
+                local fill = Instance.new("Frame")
+                fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0)
+                fill.BackgroundColor3 = Theme.AccentBlue
+                fill.BorderSizePixel = 0
+                fill.Parent = bar
 
-                local subLayout = Instance.new("UIListLayout")
-                subLayout.SortOrder = Enum.SortOrder.LayoutOrder
-                subLayout.Padding = UDim.new(0, 6)
-                subLayout.Parent = subConfigFrame
-
-                local detailsExpanded = false
-
-                local function UpdateModuleHeight()
-                    if detailsExpanded then
-                        local totalH = subLayout.AbsoluteContentSize.Y + 44
-                        SmoothTween(modFrame, {Size = UDim2.new(1, 0, 0, totalH)}, 0.3)
-                    else
-                        SmoothTween(modFrame, {Size = UDim2.new(1, 0, 0, 32)}, 0.3)
-                    end
-                    task.wait(0.1)
-                    UpdateFolderSize()
+                local dragging = false
+                local function ProcessInput(input)
+                    local pos = math.clamp((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+                    local cur = math.floor(min + (max - min) * pos)
+                    vLabel.Text = tostring(cur)
+                    Tween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, 0.05)
+                    sCallback(cur)
                 end
 
-                subLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                    if detailsExpanded then UpdateModuleHeight() end
+                bar.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = true; ProcessInput(input)
+                    end
                 end)
-
-                -- 切换 Module 激活状态逻辑
-                local function ToggleModule()
-                    module.Toggled = not module.Toggled
-                    if module.Toggled then
-                        SmoothTween(modFrame, {BackgroundColor3 = Color3.fromRGB(15, 45, 70)}, 0.25)
-                        SmoothTween(modBtn, {TextColor3 = Theme.TextWhite}, 0.25)
-                        modStroke.Color = Theme.AccentBlue
-                    else
-                        SmoothTween(modFrame, {BackgroundColor3 = Theme.ButtonUnactive}, 0.25)
-                        SmoothTween(modBtn, {TextColor3 = Theme.TextDark}, 0.25)
-                        modStroke.Color = Theme.BorderColor
-                    end
-                    callback(module.Toggled)
-                end
-
-                modBtn.MouseButton1Click:Connect(ToggleModule)
-
-                -- 点击“三个点”展开/折叠详细配置
-                moreBtn.MouseButton1Click:Connect(function()
-                    detailsExpanded = not detailsExpanded
-                    SmoothTween(moreBtn, {TextColor3 = detailsExpanded and Theme.GlowBlue or Theme.TextDark}, 0.2)
-                    UpdateModuleHeight()
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
                 end)
-
-                -- ----------------------------------------------------
-                --  子配置 1: Slider (拉条)
-                -- ----------------------------------------------------
-                function module:AddSlider(sName, min, max, default, sCallback)
-                    sCallback = sCallback or function() end
-                    local val = default or min
-
-                    local sliderFrame = Instance.new("Frame")
-                    sliderFrame.Size = UDim2.new(1, 0, 0, 38)
-                    sliderFrame.BackgroundColor3 = Theme.Container
-                    sliderFrame.BorderSizePixel = 0
-                    sliderFrame.Parent = subConfigFrame
-
-                    local sLabel = Instance.new("TextLabel")
-                    sLabel.Size = UDim2.new(1, -50, 0, 18)
-                    sLabel.Position = UDim2.new(0, 6, 0, 2)
-                    sLabel.Text = sName
-                    sLabel.TextColor3 = Theme.TextWhite
-                    sLabel.Font = Enum.Font.Gotham
-                    sLabel.TextSize = 11
-                    sLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    sLabel.BackgroundTransparency = 1
-                    sLabel.Parent = sliderFrame
-
-                    local valLabel = Instance.new("TextLabel")
-                    valLabel.Size = UDim2.new(0, 40, 0, 18)
-                    valLabel.Position = UDim2.new(1, -44, 0, 2)
-                    valLabel.Text = tostring(val)
-                    valLabel.TextColor3 = Theme.GlowBlue
-                    valLabel.Font = Enum.Font.GothamBold
-                    valLabel.TextSize = 11
-                    valLabel.TextXAlignment = Enum.TextXAlignment.Right
-                    valLabel.BackgroundTransparency = 1
-                    valLabel.Parent = sliderFrame
-
-                    local sliderBar = Instance.new("Frame")
-                    sliderBar.Size = UDim2.new(1, -12, 0, 6)
-                    sliderBar.Position = UDim2.new(0, 6, 0, 24)
-                    sliderBar.BackgroundColor3 = Color3.fromRGB(30, 40, 55)
-                    sliderBar.BorderSizePixel = 0
-                    sliderBar.Parent = sliderFrame
-
-                    local fill = Instance.new("Frame")
-                    fill.Size = UDim2.new((val - min)/(max - min), 0, 1, 0)
-                    fill.BackgroundColor3 = Theme.AccentBlue
-                    fill.BorderSizePixel = 0
-                    fill.Parent = sliderBar
-
-                    local dragging = false
-
-                    local function UpdateSlider(input)
-                        local pos = math.clamp((input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
-                        local currentVal = math.floor(min + (max - min) * pos)
-                        valLabel.Text = tostring(currentVal)
-                        SmoothTween(fill, {Size = UDim2.new(pos, 0, 1, 0)}, 0.05)
-                        sCallback(currentVal)
-                    end
-
-                    sliderBar.InputBegan:Connect(function(input)
-                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            dragging = true
-                            UpdateSlider(input)
-                        end
-                    end)
-
-                    UserInputService.InputEnded:Connect(function(input)
-                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            dragging = false
-                        end
-                    end)
-
-                    UserInputService.InputChanged:Connect(function(input)
-                        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                            UpdateSlider(input)
-                        end
-                    end)
-                end
-
-                -- ----------------------------------------------------
-                --  子配置 2: TextBox (文本输入框)
-                -- ----------------------------------------------------
-                function module:AddTextBox(boxName, placeholder, tCallback)
-                    tCallback = tCallback or function() end
-
-                    local boxFrame = Instance.new("Frame")
-                    boxFrame.Size = UDim2.new(1, 0, 0, 32)
-                    boxFrame.BackgroundColor3 = Theme.Container
-                    boxFrame.BorderSizePixel = 0
-                    boxFrame.Parent = subConfigFrame
-
-                    local tLabel = Instance.new("TextLabel")
-                    tLabel.Size = UDim2.new(0.5, 0, 1, 0)
-                    tLabel.Position = UDim2.new(0, 6, 0, 0)
-                    tLabel.Text = boxName
-                    tLabel.TextColor3 = Theme.TextWhite
-                    tLabel.Font = Enum.Font.Gotham
-                    tLabel.TextSize = 11
-                    tLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    tLabel.BackgroundTransparency = 1
-                    tLabel.Parent = boxFrame
-
-                    local textBox = Instance.new("TextBox")
-                    textBox.Size = UDim2.new(0.45, 0, 0.7, 0)
-                    textBox.Position = UDim2.new(0.52, 0, 0.15, 0)
-                    textBox.BackgroundColor3 = Theme.ButtonUnactive
-                    textBox.Text = ""
-                    textBox.PlaceholderText = placeholder or "输入..."
-                    textBox.TextColor3 = Theme.GlowBlue
-                    textBox.PlaceholderColor3 = Theme.TextDark
-                    textBox.Font = Enum.Font.Gotham
-                    textBox.TextSize = 11
-                    textBox.BorderSizePixel = 0
-                    textBox.Parent = boxFrame
-
-                    local boxStroke = Instance.new("UIStroke")
-                    boxStroke.Thickness = 1
-                    boxStroke.Color = Theme.BorderColor
-                    boxStroke.Parent = textBox
-
-                    textBox.FocusLost:Connect(function(enterPressed)
-                        tCallback(textBox.Text, enterPressed)
-                    end)
-                end
-
-                -- ----------------------------------------------------
-                --  子配置 3: Sub-Toggle (子参数开关)
-                -- ----------------------------------------------------
-                function module:AddToggle(togName, default, togCallback)
-                    togCallback = togCallback or function() end
-                    local state = default or false
-
-                    local togFrame = Instance.new("Frame")
-                    togFrame.Size = UDim2.new(1, 0, 0, 28)
-                    togFrame.BackgroundColor3 = Theme.Container
-                    togFrame.BorderSizePixel = 0
-                    togFrame.Parent = subConfigFrame
-
-                    local togBtn = Instance.new("TextButton")
-                    togBtn.Size = UDim2.new(1, 0, 1, 0)
-                    togBtn.BackgroundTransparency = 1
-                    togBtn.Text = ""
-                    togBtn.Parent = togFrame
-
-                    local togLabel = Instance.new("TextLabel")
-                    togLabel.Size = UDim2.new(1, -40, 1, 0)
-                    togLabel.Position = UDim2.new(0, 6, 0, 0)
-                    togLabel.Text = togName
-                    togLabel.TextColor3 = Theme.TextWhite
-                    togLabel.Font = Enum.Font.Gotham
-                    togLabel.TextSize = 11
-                    togLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    togLabel.BackgroundTransparency = 1
-                    togLabel.Parent = togFrame
-
-                    local indicator = Instance.new("Frame")
-                    indicator.Size = UDim2.new(0, 14, 0, 14)
-                    indicator.Position = UDim2.new(1, -20, 0.5, -7)
-                    indicator.BackgroundColor3 = state and Theme.AccentBlue or Theme.ButtonUnactive
-                    indicator.BorderSizePixel = 0
-                    indicator.Parent = togFrame
-
-                    local indStroke = Instance.new("UIStroke")
-                    indStroke.Thickness = 1
-                    indStroke.Color = state and Theme.GlowBlue or Theme.BorderColor
-                    indStroke.Parent = indicator
-
-                    togBtn.MouseButton1Click:Connect(function()
-                        state = not state
-                        if state then
-                            SmoothTween(indicator, {BackgroundColor3 = Theme.AccentBlue}, 0.2)
-                            indStroke.Color = Theme.GlowBlue
-                        else
-                            SmoothTween(indicator, {BackgroundColor3 = Theme.ButtonUnactive}, 0.2)
-                            indStroke.Color = Theme.BorderColor
-                        end
-                        togCallback(state)
-                    end)
-                end
-
-                return module
+                UserInputService.InputChanged:Connect(function(input)
+                    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then ProcessInput(input) end
+                end)
             end
 
-            return folder
+            -- --------------------------------------------------------
+            -- 子配置 2: TextBox 文本框
+            -- --------------------------------------------------------
+            function module:AddTextBox(tName, placeholder, tCallback)
+                tCallback = tCallback or function() end
+
+                local boxFrame = Instance.new("Frame")
+                boxFrame.Size = UDim2.new(1, 0, 0, 26)
+                boxFrame.BackgroundColor3 = Theme.HeaderBg
+                boxFrame.BorderSizePixel = 0
+                boxFrame.Parent = subContainer
+
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(0.45, 0, 1, 0)
+                label.Position = UDim2.new(0, 4, 0, 0)
+                label.Text = tName
+                label.TextColor3 = Theme.TextDark
+                label.Font = Enum.Font.Gotham
+                label.TextSize = 10
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.BackgroundTransparency = 1
+                label.Parent = boxFrame
+
+                local box = Instance.new("TextBox")
+                box.Size = UDim2.new(0.5, 0, 0.75, 0)
+                box.Position = UDim2.new(0.48, 0, 0.12, 0)
+                box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                box.Text = ""
+                box.PlaceholderText = placeholder or "..."
+                box.TextColor3 = Theme.TextBlue
+                box.Font = Enum.Font.Gotham
+                box.TextSize = 10
+                box.BorderSizePixel = 0
+                box.Parent = boxFrame
+
+                local bStroke = Instance.new("UIStroke")
+                bStroke.Thickness = 1
+                bStroke.Color = Theme.BorderColor
+                bStroke.Parent = box
+
+                box.FocusLost:Connect(function(e) tCallback(box.Text, e) end)
+            end
+
+            -- --------------------------------------------------------
+            -- 子配置 3: Sub-Toggle 子开关
+            -- --------------------------------------------------------
+            function module:AddToggle(subName, default, subCb)
+                subCb = subCb or function() end
+                local state = default or false
+
+                local togFrame = Instance.new("Frame")
+                togFrame.Size = UDim2.new(1, 0, 0, 24)
+                togFrame.BackgroundColor3 = Theme.HeaderBg
+                togFrame.BorderSizePixel = 0
+                togFrame.Parent = subContainer
+
+                local tBtn = Instance.new("TextButton")
+                tBtn.Size = UDim2.new(1, 0, 1, 0)
+                tBtn.BackgroundTransparency = 1
+                tBtn.Text = ""
+                tBtn.Parent = togFrame
+
+                local label = Instance.new("TextLabel")
+                label.Size = UDim2.new(0.7, 0, 1, 0)
+                label.Position = UDim2.new(0, 4, 0, 0)
+                label.Text = subName
+                label.TextColor3 = Theme.TextDark
+                label.Font = Enum.Font.Gotham
+                label.TextSize = 10
+                label.TextXAlignment = Enum.TextXAlignment.Left
+                label.BackgroundTransparency = 1
+                label.Parent = togFrame
+
+                local dot = Instance.new("Frame")
+                dot.Size = UDim2.new(0, 12, 0, 12)
+                dot.Position = UDim2.new(1, -16, 0.5, -6)
+                dot.BackgroundColor3 = state and Theme.AccentBlue or Color3.fromRGB(200, 210, 225)
+                dot.BorderSizePixel = 0
+                dot.Parent = togFrame
+
+                tBtn.MouseButton1Click:Connect(function()
+                    state = not state
+                    Tween(dot, {BackgroundColor3 = state and Theme.AccentBlue or Color3.fromRGB(200, 210, 225)}, 0.15)
+                    subCb(state)
+                end)
+            end
+
+            return module
         end
 
         return tab
@@ -624,4 +549,4 @@ function SciFiLib:CreateWindow(titleText)
     return window
 end
 
-return SciFiLib
+return VapeLib
