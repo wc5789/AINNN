@@ -730,20 +730,34 @@ function Library:CreateWindow(options)
         Parent = RightControls
     })
 
-    -- FPS Counter Calculation (Updated every 0.4s)
-    local frameCount = 0
-    local lastCheck = os.clock()
-    RegisterConnection(RunService.RenderStepped:Connect(function()
-        frameCount = frameCount + 1
-        local now = os.clock()
-        if now - lastCheck >= 0.4 then
-            local fps = math.floor(frameCount / (now - lastCheck))
-            local ping = math.floor(((workspace.GetRealPhysicalPing and workspace:GetRealPhysicalPing() or 0.03) * 1000))
+   -- ===== FPS + Ping 计数器 (稳定通用版) =====
+local frameCount = 0
+local lastCheck = os.clock()
+local statsService = game:GetService("Stats")
+
+-- 安全获取 Ping（毫秒）
+local function GetPing()
+    local success, ping = pcall(function()
+        return statsService:GetRealPhysicalPing()
+    end)
+    return success and ping or 0
+end
+
+-- 使用 RenderStepped 计数，每 0.4 秒更新一次 UI
+RegisterConnection(RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = os.clock()
+    if now - lastCheck >= 0.4 then
+        local fps = math.floor(frameCount / (now - lastCheck))
+        local ping = math.floor(GetPing())
+        -- 确保 StatLabel 存在再更新
+        if StatLabel and StatLabel.Parent then
             StatLabel.Text = string.format("FPS: %d | %dms", fps, ping)
-            frameCount = 0
-            lastCheck = now
         end
-    end))
+        frameCount = 0
+        lastCheck = now
+    end
+end))
 
     -- Minimize Button
     local MinBtn = Create("TextButton", {
@@ -1239,8 +1253,7 @@ function Library:CreateWindow(options)
                 table.insert(Library.SearchRegistry, { Name = name, Description = desc, Frame = TglFrame, Tab = TabObj })
                 return { SetValue = SetState }
             end
-
--- 重写 Slider 部分 (位于 SectionObj:CreateSlider 函数内)
+----- 拉条部分
 function SectionObj:CreateSlider(sldOpt)
     sldOpt = sldOpt or {}
     local name = sldOpt.Name or "Slider"
@@ -1253,7 +1266,6 @@ function SectionObj:CreateSlider(sldOpt)
 
     Library.Flags[flag] = default
 
-    -- 主容器
     local SldFrame = Create("Frame", {
         Size = UDim2.new(1, 0, 0, 52),
         BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
@@ -1285,14 +1297,14 @@ function SectionObj:CreateSlider(sldOpt)
     })
 
     -- 自定义颜色
-    local trackColor = Color3.fromRGB(36, 36, 36)      -- #242424
-    local fillColor = Color3.fromRGB(255, 163, 26)      -- #FFA31A
-    local handleBg = Color3.fromRGB(24, 24, 24)         -- #181818
-    local handleBorder = Color3.fromRGB(58, 58, 58)     -- #3A3A3A
-    local handleBgHover = Color3.fromRGB(34, 34, 34)    -- 变亮
+    local trackColor = Color3.fromRGB(36, 36, 36)
+    local fillColor = Color3.fromRGB(255, 163, 26)
+    local handleBg = Color3.fromRGB(24, 24, 24)
+    local handleBorder = Color3.fromRGB(58, 58, 58)
+    local handleBgHover = Color3.fromRGB(34, 34, 34)
     local handleBorderHover = Color3.fromRGB(80, 80, 80)
 
-    -- Track 容器 (高度 10px)
+    -- Track (高度 10px)
     local Track = Create("Frame", {
         Name = "Track",
         Size = UDim2.new(1, -20, 0, 10),
@@ -1304,7 +1316,7 @@ function SectionObj:CreateSlider(sldOpt)
         MakeCorner(nil, 5)
     })
 
-    -- Fill (进度条，颜色黄色)
+    -- Fill
     local Fill = Create("Frame", {
         Name = "Fill",
         Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
@@ -1315,7 +1327,7 @@ function SectionObj:CreateSlider(sldOpt)
         MakeCorner(nil, 5)
     })
 
-    -- Handle (悬浮胶囊)
+    -- Handle (胶囊)
     local Handle = Create("Frame", {
         Name = "Handle",
         Size = UDim2.new(0, 40, 0, 18),
@@ -1327,6 +1339,7 @@ function SectionObj:CreateSlider(sldOpt)
     }, {
         MakeCorner(nil, 5),
         Create("UIStroke", {
+            Name = "Stroke",
             Color = handleBorder,
             Thickness = 1,
             Transparency = 0,
@@ -1342,51 +1355,100 @@ function SectionObj:CreateSlider(sldOpt)
         })
     })
 
-    -- 获取子对象
+    -- 引用
     local valLabel = SldFrame.ValueLabel
-    local track = Track
     local fill = Fill
     local handle = Handle
-    local handleStroke = handle:FindFirstChild("UIStroke")
-    local handleScale = handle:FindFirstChild("ScaleObject")
+    local handleStroke = Handle:FindFirstChild("Stroke")
+    local handleScale = Handle:FindFirstChild("ScaleObject")
+    local track = Track
 
-    -- 状态变量
+    -- 状态
     local dragging = false
-    local currentYOffset = 0          -- 用于 hover 上移
+    local currentYOffset = 0
     local targetValue = default
 
-    -- 更新值函数 (直接设置，无 Tween)
-    local function UpdateValueFromInput(inputPos)
-        -- 计算百分比
-        local absPos = inputPos.X
-        local trackLeft = track.AbsolutePosition.X
-        local trackWidth = track.AbsoluteSize.X
-        if trackWidth <= 0 then return end
-        local percent = math.clamp((absPos - trackLeft) / trackWidth, 0, 1)
+    -- 缓存 Track 尺寸（拖动时使用）
+    local cachedTrackX = 0
+    local cachedTrackWidth = 0
+
+    -- 更新值 (直接设置位置，无 Tween)
+    local function SetValueInternal(val, updateCallback)
+        val = math.clamp(val, min, max)
+        targetValue = val
+        local percent = (val - min) / (max - min)
+        -- 更新 Fill
+        fill.Size = UDim2.new(percent, 0, 1, 0)
+        -- 更新数值文本（带微动画，仅当非拖动时）
+        if not dragging then
+            valLabel.Text = tostring(val)
+        else
+            valLabel.Text = tostring(val)
+        end
+        -- 更新 Handle 位置
+        local trackWidth = cachedTrackWidth > 0 and cachedTrackWidth or track.AbsoluteSize.X
+        if trackWidth > 0 then
+            local x = percent * trackWidth
+            handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+        end
+        -- 更新 flag 和 callback
+        Library.Flags[flag] = val
+        if updateCallback ~= false then
+            callback(val)
+        end
+    end
+
+    -- 从输入计算数值
+    local function CalculateValueFromPosition(inputPos)
+        if cachedTrackWidth <= 0 then return end
+        local absX = inputPos.X
+        local percent = math.clamp((absX - cachedTrackX) / cachedTrackWidth, 0, 1)
         local rawVal = min + (max - min) * percent
         local steppedVal = math.floor(rawVal / increment + 0.5) * increment
         steppedVal = math.clamp(steppedVal, min, max)
-        targetValue = steppedVal
-
-        -- 更新 Fill
-        fill.Size = UDim2.new((steppedVal - min) / (max - min), 0, 1, 0)
-        -- 更新数值文本
-        valLabel.Text = tostring(steppedVal)
-        -- 更新 Handle 位置 (X 轴)
-        local handleX = ((steppedVal - min) / (max - min)) * trackWidth
-        handle.Position = UDim2.new(0, handleX, 0.5, currentYOffset)
-        -- 存储 Flag 并回调
-        Library.Flags[flag] = steppedVal
-        callback(steppedVal)
+        return steppedVal
     end
 
-    -- 拖动开始处理
+    -- 拖动中更新（直接位置，不 Tween）
+    local function UpdateDrag(inputPos)
+        if not dragging then return end
+        local val = CalculateValueFromPosition(inputPos)
+        if val then
+            targetValue = val
+            -- 直接更新
+            local percent = (val - min) / (max - min)
+            fill.Size = UDim2.new(percent, 0, 1, 0)
+            valLabel.Text = tostring(val)
+            local x = percent * cachedTrackWidth
+            handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+            Library.Flags[flag] = val
+            callback(val)
+        end
+    end
+
+    -- 拖动开始
     local function OnDragStart(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            -- 缓存 Track 尺寸
+            cachedTrackX = track.AbsolutePosition.X
+            cachedTrackWidth = track.AbsoluteSize.X
+            if cachedTrackWidth <= 0 then return end
+
             dragging = true
-            UpdateValueFromInput(input.Position)
-            -- 放大 Handle (Tween)
+            -- 放大 Handle
             Library:Tween(handleScale, 0.1, { Scale = 1.04 })
+            -- 立即更新一次
+            local val = CalculateValueFromPosition(input.Position)
+            if val then
+                targetValue = val
+                local percent = (val - min) / (max - min)
+                fill.Size = UDim2.new(percent, 0, 1, 0)
+                valLabel.Text = tostring(val)
+                local x = percent * cachedTrackWidth
+                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+                Library.Flags[flag] = val
+                callback(val)
+            end
         end
     end
 
@@ -1394,10 +1456,10 @@ function SectionObj:CreateSlider(sldOpt)
     track.InputBegan:Connect(OnDragStart)
     handle.InputBegan:Connect(OnDragStart)
 
-    -- 全局移动事件
+    -- 全局输入变化（拖动中）
     RegisterConnection(UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            UpdateValueFromInput(input.Position)
+            UpdateDrag(input.Position)
         end
     end))
 
@@ -1406,13 +1468,17 @@ function SectionObj:CreateSlider(sldOpt)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if dragging then
                 dragging = false
-                -- 恢复 Handle 缩放
                 Library:Tween(handleScale, 0.1, { Scale = 1 })
+                -- 恢复缓存，下次拖动重新获取
+                cachedTrackWidth = 0
+                -- 确保最终值准确（可能因触摸误差）
+                local finalVal = Library.Flags[flag] or targetValue
+                SetValueInternal(finalVal, false)
             end
         end
     end))
 
-    -- Hover 进入
+    -- Hover 上移
     RegisterConnection(handle.MouseEnter:Connect(function()
         currentYOffset = -1
         Library:Tween(handle, 0.12, {
@@ -1424,7 +1490,6 @@ function SectionObj:CreateSlider(sldOpt)
         end
     end))
 
-    -- Hover 离开
     RegisterConnection(handle.MouseLeave:Connect(function()
         currentYOffset = 0
         Library:Tween(handle, 0.12, {
@@ -1436,17 +1501,7 @@ function SectionObj:CreateSlider(sldOpt)
         end
     end))
 
-    -- 初始位置设定
-    local initPercent = (default - min) / (max - min)
-    fill.Size = UDim2.new(initPercent, 0, 1, 0)
-    valLabel.Text = tostring(default)
-    local trackWidth = track.AbsoluteSize.X
-    if trackWidth > 0 then
-        local initX = initPercent * trackWidth
-        handle.Position = UDim2.new(0, initX, 0.5, 0)
-    end
-
-    -- 窗口大小变化时重新定位 Handle
+    -- 窗口大小变化时重新定位
     RegisterConnection(SldFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
         if not dragging then
             local val = Library.Flags[flag] or default
@@ -1459,25 +1514,25 @@ function SectionObj:CreateSlider(sldOpt)
         end
     end))
 
-    -- 注册搜索
+    -- 初始设置
+    local initPercent = (default - min) / (max - min)
+    fill.Size = UDim2.new(initPercent, 0, 1, 0)
+    valLabel.Text = tostring(default)
+    -- 延迟一帧获取尺寸
+    task.defer(function()
+        local trackWidth = track.AbsoluteSize.X
+        if trackWidth > 0 then
+            local x = initPercent * trackWidth
+            handle.Position = UDim2.new(0, x, 0.5, 0)
+        end
+    end)
+
+    -- 搜索注册
     table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
 
-    -- 返回 SetValue 接口
     return {
         SetValue = function(val)
-            val = math.clamp(val, min, max)
-            targetValue = val
-            local percent = (val - min) / (max - min)
-            fill.Size = UDim2.new(percent, 0, 1, 0)
-            valLabel.Text = tostring(val)
-            Library.Flags[flag] = val
-            callback(val)
-            -- 更新 Handle 位置
-            local trackWidth = track.AbsoluteSize.X
-            if trackWidth > 0 then
-                local x = percent * trackWidth
-                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
-            end
+            SetValueInternal(val, true)
         end
     }
 end
