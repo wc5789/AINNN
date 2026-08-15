@@ -507,7 +507,9 @@ function Library:Destroy()
             conn:Disconnect()
         end
     end
-    table.clear(Library.Connections)
+    for i = #Library.Connections, 1, -1 do
+        Library.Connections[i] = nil
+    end
     if ScreenGui then
         ScreenGui:Destroy()
     end
@@ -736,7 +738,7 @@ function Library:CreateWindow(options)
         local now = os.clock()
         if now - lastCheck >= 0.4 then
             local fps = math.floor(frameCount / (now - lastCheck))
-            local ping = math.floor((workspace:GetRealPhysicalPing and workspace:GetRealPhysicalPing() or 0.03) * 1000)
+            local ping = math.floor(((workspace.GetRealPhysicalPing and workspace:GetRealPhysicalPing() or 0.03) * 1000))
             StatLabel.Text = string.format("FPS: %d | %dms", fps, ping)
             frameCount = 0
             lastCheck = now
@@ -1492,7 +1494,7 @@ function Library:CreateWindow(options)
                 }
             end
 
-            -- 5. TEXTBOX
+                   -- 5. TEXTBOX
             function SectionObj:CreateTextbox(txtOpt)
                 txtOpt = txtOpt or {}
                 local name = txtOpt.Name or "Input"
@@ -1525,12 +1527,7 @@ function Library:CreateWindow(options)
                         Parent = TxtFrame
                     }, {
                         MakeCorner(nil, 4),
-                        -- ✅ 正确写法
-                    Create("UIStroke", {
-                      Color = Library.CurrentTheme.Border,
-                     Thickness = 1,
-                  ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-                    }),
+                        MakeStroke(nil, Library.CurrentTheme.Border, 1),
                         Create("TextBox", {
                             Size = UDim2.new(1, -12, 1, 0),
                             Position = UDim2.new(0, 6, 0, 0),
@@ -1657,9 +1654,16 @@ function Library:CreateWindow(options)
                 local flag = multiOpt.Flag or name
                 local callback = multiOpt.Callback or function() end
 
+                local function tableFind(tbl, val)
+                    for _, v in ipairs(tbl) do
+                        if v == val then return true end
+                    end
+                    return false
+                end
+
                 local selected = {}
                 for _, opt in ipairs(options) do
-                    selected[opt] = table.find(default, opt) ~= nil
+                    selected[opt] = tableFind(default, opt)
                 end
                 Library.Flags[flag] = selected
 
