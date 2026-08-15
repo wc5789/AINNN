@@ -1253,7 +1253,6 @@ end))
                 table.insert(Library.SearchRegistry, { Name = name, Description = desc, Frame = TglFrame, Tab = TabObj })
                 return { SetValue = SetState }
             end
------ 拉条部分
 function SectionObj:CreateSlider(sldOpt)
     sldOpt = sldOpt or {}
     local name = sldOpt.Name or "Slider"
@@ -1266,7 +1265,7 @@ function SectionObj:CreateSlider(sldOpt)
 
     Library.Flags[flag] = default
 
-    -- ========== UI 构建 ==========
+    -- ===== UI 构建 =====
     local SldFrame = Create("Frame", {
         Size = UDim2.new(1, 0, 0, 56),
         BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
@@ -1304,9 +1303,7 @@ function SectionObj:CreateSlider(sldOpt)
         BackgroundColor3 = Color3.fromRGB(36, 36, 36),
         BorderSizePixel = 0,
         Parent = SldFrame
-    }, {
-        MakeCorner(nil, 6)
-    })
+    }, { MakeCorner(nil, 6) })
 
     local Fill = Create("Frame", {
         Name = "Fill",
@@ -1314,9 +1311,7 @@ function SectionObj:CreateSlider(sldOpt)
         BackgroundColor3 = Color3.fromRGB(255, 163, 26),
         BorderSizePixel = 0,
         Parent = Track
-    }, {
-        MakeCorner(nil, 6)
-    })
+    }, { MakeCorner(nil, 6) })
 
     local Handle = Create("Frame", {
         Name = "Handle",
@@ -1328,12 +1323,7 @@ function SectionObj:CreateSlider(sldOpt)
         Parent = Track
     }, {
         MakeCorner(nil, 6),
-        Create("UIStroke", {
-            Name = "Stroke",
-            Color = Color3.fromRGB(58, 58, 58),
-            Thickness = 1.5,
-            Transparency = 0,
-        }),
+        Create("UIStroke", { Name = "Stroke", Color = Color3.fromRGB(58, 58, 58), Thickness = 1.5 }),
         Create("UIScale", { Name = "ScaleObject", Scale = 1 }),
         Create("TextLabel", {
             Size = UDim2.new(1, 0, 1, 0),
@@ -1345,7 +1335,7 @@ function SectionObj:CreateSlider(sldOpt)
         })
     })
 
-    -- 使用一个透明的 TextButton 作为全轨道点击区（扩大触摸区域）
+    -- 扩大触摸区域的全透明 Hitbox
     local Hitbox = Create("TextButton", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
@@ -1353,18 +1343,13 @@ function SectionObj:CreateSlider(sldOpt)
         Parent = Track
     })
 
-    -- ========== 变量与标志 ==========
+    -- ===== 变量与连接表 =====
     local isDragging = false
-    local isHovering = false
     local currentValue = default
-    local activeTweens = {}          -- 存放所有进行中的 Tween
-    local connections = {}            -- 存放所有连接
-    local valueLabel = SldFrame.ValueLabel
-    local handleScale = Handle:FindFirstChild("ScaleObject")
-    local handleStroke = Handle:FindFirstChild("Stroke")
+    local connections = {}
+    local activeTweens = {}
 
-    -- ========== 辅助函数：取消所有 Tween ==========
-    local function cancelAllTweens()
+    local function cancelTweens()
         for _, tw in ipairs(activeTweens) do
             if tw and tw.PlaybackState ~= Enum.PlaybackState.Completed then
                 tw:Cancel()
@@ -1373,15 +1358,15 @@ function SectionObj:CreateSlider(sldOpt)
         activeTweens = {}
     end
 
-    -- ========== 更新数值（实时无动画） ==========
+    -- ===== 核心更新（无动画，实时） =====
     local function updateValue(val, fireCallback)
         val = math.clamp(val, min, max)
         currentValue = val
         local percent = (val - min) / (max - min)
         Fill.Size = UDim2.new(percent, 0, 1, 0)
-        local trackWidth = Track.AbsoluteSize.X
-        if trackWidth > 0 then
-            Handle.Position = UDim2.new(0, percent * trackWidth, 0.5, 0)
+        local tw = Track.AbsoluteSize.X
+        if tw > 0 then
+            Handle.Position = UDim2.new(0, percent * tw, 0.5, 0)
         end
         Library.Flags[flag] = val
         if fireCallback ~= false then
@@ -1389,117 +1374,59 @@ function SectionObj:CreateSlider(sldOpt)
         end
     end
 
-    -- ========== 数字动画（淡入+微滑） ==========
+    -- ===== 数字动画（简单淡入） =====
     local function animateValueText(newVal)
-        local oldText = valueLabel.Text
-        valueLabel.Text = tostring(newVal)
-        -- 如果数值没变，不触发动画
-        if oldText == valueLabel.Text then return end
-        -- 取消旧动画
-        cancelAllTweens()  -- 注意：这里会取消所有 tween，但拖动过程中我们不使用 tween，所以安全
-        -- 设置起始状态：透明，稍微向下偏移
-        valueLabel.Transparency = 0.4
-        local oldPos = valueLabel.Position
-        valueLabel.Position = UDim2.new(oldPos.X.Scale, oldPos.X.Offset, oldPos.Y.Scale, oldPos.Y.Offset + 3)
-        -- 播放淡入+归位
-        local tw1 = Library:Tween(valueLabel, 0.08, { Transparency = 1 })
-        local tw2 = Library:Tween(valueLabel, 0.08, { Position = oldPos })
-        table.insert(activeTweens, tw1)
-        table.insert(activeTweens, tw2)
+        local label = SldFrame.ValueLabel
+        if label.Text == tostring(newVal) then return end
+        label.Text = tostring(newVal)
+        cancelTweens()
+        label.Transparency = 0.3
+        local tw = Library:Tween(label, 0.1, { Transparency = 1 })
+        table.insert(activeTweens, tw)
     end
 
-    -- ========== 根据鼠标/触摸位置计算值 ==========
-    local function getValueFromPosition(inputPos)
+    -- ===== 计算值 =====
+    local function getValueFromPosition(x)
         local trackX = Track.AbsolutePosition.X
-        local trackWidth = Track.AbsoluteSize.X
-        if trackWidth <= 0 then return nil end
-        local percent = math.clamp((inputPos.X - trackX) / trackWidth, 0, 1)
-        local rawVal = min + (max - min) * percent
-        local steppedVal = math.floor(rawVal / increment + 0.5) * increment
-        return math.clamp(steppedVal, min, max)
+        local trackW = Track.AbsoluteSize.X
+        if trackW <= 0 then return nil end
+        local percent = math.clamp((x - trackX) / trackW, 0, 1)
+        local raw = min + (max - min) * percent
+        local stepped = math.floor(raw / increment + 0.5) * increment
+        return math.clamp(stepped, min, max)
     end
 
-    -- ========== 视觉状态动画（Hover / 释放 / 按下） ==========
-    local function applyVisualState(stateName)
-        cancelAllTweens()
-        local targetScale = 1
-        local targetBg = Color3.fromRGB(24, 24, 24)
-        local targetStroke = Color3.fromRGB(58, 58, 58)
-        local targetY = 0
-
-        if stateName == "hover" then
-            targetScale = 1.03
-            targetBg = Color3.fromRGB(34, 34, 34)
-            targetStroke = Color3.fromRGB(80, 80, 80)
-            targetY = -1
-        elseif stateName == "press" then
-            targetScale = 0.98
-            -- 短暂压缩，很快恢复，由调用处控制
-        elseif stateName == "drag" then
-            targetScale = 1.06
-            targetBg = Color3.fromRGB(38, 38, 38)
-            targetStroke = Color3.fromRGB(120, 120, 120)
-            targetY = 1
-        elseif stateName == "release" then
-            targetScale = 1
-            targetBg = Color3.fromRGB(24, 24, 24)
-            targetStroke = Color3.fromRGB(58, 58, 58)
-            targetY = 0
-        end
-
-        local duration = 0.10
-        if stateName == "press" then duration = 0.07 end
-        if stateName == "release" then duration = 0.12 end
-        if stateName == "drag" then duration = 0.08 end
-
-        local tw1 = Library:Tween(handleScale, duration, { Scale = targetScale })
-        local tw2 = Library:Tween(Handle, duration, { BackgroundColor3 = targetBg })
-        local tw3 = Library:Tween(handleStroke, duration, { Color = targetStroke })
-        -- Y 位置偏移
-        local currentPos = Handle.Position
-        local twY = Library:Tween(Handle, duration, { Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0.5, targetY) })
-
-        table.insert(activeTweens, tw1)
-        table.insert(activeTweens, tw2)
-        table.insert(activeTweens, tw3)
-        table.insert(activeTweens, twY)
-    end
-
-    -- ========== 按下-释放的按压动画（快速压缩再弹回） ==========
-    local function playPressAnimation()
-        cancelAllTweens()
-        -- 先压到 0.98
-        local tw1 = Library:Tween(handleScale, 0.07, { Scale = 0.98 })
-        tw1.Completed:Connect(function()
-            if not isDragging then
-                -- 如果仍然没有拖动，恢复到 hover 或 idle
-                if isHovering then
-                    applyVisualState("hover")
-                else
-                    applyVisualState("release")
-                end
-            else
-                -- 如果已进入拖动，使用 drag 状态
-                applyVisualState("drag")
-            end
-        end)
-        table.insert(activeTweens, tw1)
-    end
-
-    -- ========== 事件处理 ==========
+    -- ===== 鼠标/触摸事件 =====
     local function onInputBegan(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            -- 按下时立即响应位置
-            local val = getValueFromPosition(input.Position)
+            isDragging = true
+            local val = getValueFromPosition(input.Position.X)
             if val then
                 updateValue(val, true)
                 animateValueText(val)
             end
-            isDragging = true
-            -- 播放按压动画（0.07s 压缩）
-            playPressAnimation()
-            -- 快速进入拖拽状态（如果鼠标移动则自动切换，但先设 drag）
-            applyVisualState("drag")
+            -- 缩放反馈：快速压缩再恢复（仅当未移动时）
+            cancelTweens()
+            local sc = Handle.ScaleObject
+            local tw1 = Library:Tween(sc, 0.06, { Scale = 0.96 })
+            tw1.Completed:Connect(function()
+                if not isDragging then
+                    Library:Tween(sc, 0.06, { Scale = 1.0 })
+                else
+                    Library:Tween(sc, 0.06, { Scale = 1.06 })
+                end
+            end)
+            table.insert(activeTweens, tw1)
+        end
+    end
+
+    local function onInputChanged(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local val = getValueFromPosition(input.Position.X)
+            if val then
+                updateValue(val, true)
+                animateValueText(val)
+            end
         end
     end
 
@@ -1507,54 +1434,55 @@ function SectionObj:CreateSlider(sldOpt)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if isDragging then
                 isDragging = false
-                -- 最终更新值
+                -- 恢复 Handle 缩放
+                cancelTweens()
+                local sc = Handle.ScaleObject
+                local tw = Library:Tween(sc, 0.1, { Scale = 1.0 })
+                table.insert(activeTweens, tw)
+                -- 确保最终值正确
                 updateValue(currentValue, false)
-                -- 释放动画
-                applyVisualState("release")
-                -- 如果鼠标仍在控件上，恢复 hover
-                if isHovering then
-                    applyVisualState("hover")
-                end
             end
         end
     end
 
-    local function onInputChanged(input)
-        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local val = getValueFromPosition(input.Position)
-            if val then
-                updateValue(val, true)
-                animateValueText(val)
-            end
-        end
-    end
-
-    -- 绑定 Hitbox 输入
+    -- 绑定 Hitbox 的输入
     connections[#connections+1] = Hitbox.InputBegan:Connect(onInputBegan)
     connections[#connections+1] = Hitbox.InputEnded:Connect(onInputEnded)
-    -- 全局移动/结束（保证拖出窗口仍可释放）
+    -- 全局监听移动（保证拖出窗口仍响应）
     connections[#connections+1] = RegisterConnection(UserInputService.InputChanged:Connect(onInputChanged))
     connections[#connections+1] = RegisterConnection(UserInputService.InputEnded:Connect(onInputEnded))
 
-    -- Hover 事件（仅鼠标）
+    -- ===== Hover 效果（仅鼠标，缩放 1.03，边框变亮） =====
     local function onMouseEnter()
-        isHovering = true
         if not isDragging then
-            applyVisualState("hover")
+            cancelTweens()
+            local sc = Handle.ScaleObject
+            local stroke = Handle.Stroke
+            local tw1 = Library:Tween(sc, 0.08, { Scale = 1.03 })
+            local tw2 = Library:Tween(stroke, 0.08, { Color = Color3.fromRGB(80, 80, 80) })
+            table.insert(activeTweens, tw1)
+            table.insert(activeTweens, tw2)
         end
     end
+
     local function onMouseLeave()
-        isHovering = false
         if not isDragging then
-            applyVisualState("release")
+            cancelTweens()
+            local sc = Handle.ScaleObject
+            local stroke = Handle.Stroke
+            local tw1 = Library:Tween(sc, 0.08, { Scale = 1.0 })
+            local tw2 = Library:Tween(stroke, 0.08, { Color = Color3.fromRGB(58, 58, 58) })
+            table.insert(activeTweens, tw1)
+            table.insert(activeTweens, tw2)
         end
     end
+
     connections[#connections+1] = Hitbox.MouseEnter:Connect(onMouseEnter)
     connections[#connections+1] = Hitbox.MouseLeave:Connect(onMouseLeave)
     connections[#connections+1] = Handle.MouseEnter:Connect(onMouseEnter)
     connections[#connections+1] = Handle.MouseLeave:Connect(onMouseLeave)
 
-    -- 窗口大小变化时重新定位
+    -- ===== 窗口大小变化时重新定位 =====
     local function onSizeChange()
         if not isDragging then
             updateValue(currentValue, false)
@@ -1562,31 +1490,26 @@ function SectionObj:CreateSlider(sldOpt)
     end
     connections[#connections+1] = Track:GetPropertyChangedSignal("AbsoluteSize"):Connect(onSizeChange)
 
-    -- ========== 初始化 ==========
+    -- ===== 初始化 =====
     updateValue(default, false)
     animateValueText(default)
-    applyVisualState("release")   -- 确保初始状态为 idle
 
-    -- ========== 清理（自动） ==========
+    -- ===== 清理 =====
     local function cleanup()
-        cancelAllTweens()
+        cancelTweens()
         for _, conn in ipairs(connections) do
             if conn and conn.Connected then conn:Disconnect() end
         end
         connections = {}
     end
 
-    -- 监听父级销毁
     SldFrame.AncestryChanged:Connect(function()
         if not SldFrame.Parent then
             cleanup()
         end
     end)
 
-    -- 注册到全局（Library 卸载时也会清理）
-    RegisterConnection(SldFrame.AncestryChanged:Connect(function() end))  -- 占位
-
-    -- ========== 对外 API ==========
+    -- ===== 对外 API =====
     table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
 
     return {
@@ -1594,9 +1517,15 @@ function SectionObj:CreateSlider(sldOpt)
             val = math.clamp(val, min, max)
             updateValue(val, true)
             animateValueText(val)
-            -- 如果不在拖动，可播放一个短促反馈（可选）
             if not isDragging then
-                -- 可加一个轻微脉冲
+                -- 短促视觉反馈（可选）
+                cancelTweens()
+                local sc = Handle.ScaleObject
+                local tw1 = Library:Tween(sc, 0.06, { Scale = 1.04 })
+                tw1.Completed:Connect(function()
+                    Library:Tween(sc, 0.06, { Scale = 1.0 })
+                end)
+                table.insert(activeTweens, tw1)
             end
         end
     }
