@@ -1492,81 +1492,82 @@ function Library:CreateWindow(options)
                 }
             end
 
+            -- 5. TEXTBOX
             function SectionObj:CreateTextbox(txtOpt)
-    txtOpt = txtOpt or {}
-    local name = txtOpt.Name or "Input"
-    local placeholder = txtOpt.Placeholder or "Type here..."
-    local flag = txtOpt.Flag or name
-    local callback = txtOpt.Callback or function() end
+                txtOpt = txtOpt or {}
+                local name = txtOpt.Name or "Input"
+                local placeholder = txtOpt.Placeholder or "Type here..."
+                local flag = txtOpt.Flag or name
+                local callback = txtOpt.Callback or function() end
 
-    local TxtFrame = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 56),
-        BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
-        Parent = SectionCard
-    }, {
-        MakeCorner(nil, 5),
-        MakeStroke(nil, Library.CurrentTheme.Border, 1),
-        Create("TextLabel", {
-            Size = UDim2.new(1, -20, 0, 18),
-            Position = UDim2.new(0, 10, 0, 4),
-            BackgroundTransparency = 1,
-            Text = name,
-            TextColor3 = Library.CurrentTheme.TextPrimary,
-            TextSize = 13,
-            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-            TextXAlignment = Enum.TextXAlignment.Left
-        }),
-        Create("Frame", {
-            Name = "InputBox",
-            Size = UDim2.new(1, -20, 0, 26),
-            Position = UDim2.new(0, 10, 0, 24),
-            BackgroundColor3 = Library.CurrentTheme.ElementBackground,
-            Parent = TxtFrame
-        }, {
-            MakeCorner(nil, 4),
-            -- ✅ 修复点：直接创建 UIStroke 作为子元素
-            Create("UIStroke", {
-                Color = Library.CurrentTheme.Border,
-                Thickness = 1,
-                ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-            }),
-            Create("TextBox", {
-                Size = UDim2.new(1, -12, 1, 0),
-                Position = UDim2.new(0, 6, 0, 0),
-                BackgroundTransparency = 1,
-                PlaceholderText = placeholder,
-                PlaceholderColor3 = Library.CurrentTheme.TextMuted,
-                Text = "",
-                TextColor3 = Library.CurrentTheme.TextPrimary,
-                TextSize = 12,
-                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
-                TextXAlignment = Enum.TextXAlignment.Left,
-                ClearTextOnFocus = false
-            })
-        })
-    })
+                local TxtFrame = Create("Frame", {
+                    Size = UDim2.new(1, 0, 0, 56),
+                    BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
+                    Parent = SectionCard
+                }, {
+                    MakeCorner(nil, 5),
+                    MakeStroke(nil, Library.CurrentTheme.Border, 1),
+                    Create("TextLabel", {
+                        Size = UDim2.new(1, -20, 0, 18),
+                        Position = UDim2.new(0, 10, 0, 4),
+                        BackgroundTransparency = 1,
+                        Text = name,
+                        TextColor3 = Library.CurrentTheme.TextPrimary,
+                        TextSize = 13,
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                        TextXAlignment = Enum.TextXAlignment.Left
+                    }),
+                    Create("Frame", {
+                        Name = "InputBox",
+                        Size = UDim2.new(1, -20, 0, 26),
+                        Position = UDim2.new(0, 10, 0, 24),
+                        BackgroundColor3 = Library.CurrentTheme.ElementBackground,
+                        Parent = TxtFrame
+                    }, {
+                        MakeCorner(nil, 4),
+                        -- ✅ 正确写法
+                    Create("UIStroke", {
+                      Color = Library.CurrentTheme.Border,
+                     Thickness = 1,
+                  ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                    }),
+                        Create("TextBox", {
+                            Size = UDim2.new(1, -12, 1, 0),
+                            Position = UDim2.new(0, 6, 0, 0),
+                            BackgroundTransparency = 1,
+                            PlaceholderText = placeholder,
+                            PlaceholderColor3 = Library.CurrentTheme.TextMuted,
+                            Text = "",
+                            TextColor3 = Library.CurrentTheme.TextPrimary,
+                            TextSize = 12,
+                            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            ClearTextOnFocus = false
+                        })
+                    })
+                })
 
-    local input = TxtFrame.InputBox.TextBox
-    local stroke = TxtFrame.InputBox.UIStroke  -- ✅ 修正变量名
+                local input = TxtFrame.InputBox.TextBox
+                local stroke = TxtFrame.InputBox.UIStroke
 
-    input.Focused:Connect(function()
-        Library:Tween(stroke, 0.15, { Color = Library.CurrentTheme.Accent })
-    end)
+                input.Focused:Connect(function()
+                    Library:Tween(stroke, 0.15, { Color = Library.CurrentTheme.Accent })
+                end)
 
-    input.FocusLost:Connect(function(enterPressed)
-        Library:Tween(stroke, 0.15, { Color = Library.CurrentTheme.Border })
-        Library.Flags[flag] = input.Text
-        callback(input.Text, enterPressed)
-    end)
+                input.FocusLost:Connect(function(enterPressed)
+                    Library:Tween(stroke, 0.15, { Color = Library.CurrentTheme.Border })
+                    Library.Flags[flag] = input.Text
+                    callback(input.Text, enterPressed)
+                end)
 
-    table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = TxtFrame, Tab = TabObj })
-    return {
-        SetText = function(str)
-            input.Text = str
-            Library.Flags[flag] = str
-        end
-    }
-end
+                table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = TxtFrame, Tab = TabObj })
+                return {
+                    SetText = function(str)
+                        input.Text = str
+                        Library.Flags[flag] = str
+                    end
+                }
+            end
 
             -- 6. KEYBIND
             function SectionObj:CreateKeybind(keyOpt)
