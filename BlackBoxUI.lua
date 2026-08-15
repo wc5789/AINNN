@@ -1266,8 +1266,9 @@ function SectionObj:CreateSlider(sldOpt)
 
     Library.Flags[flag] = default
 
+    -- 主容器
     local SldFrame = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 52),
+        Size = UDim2.new(1, 0, 0, 56),          -- 稍微增高
         BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
         Parent = SectionCard
     }, {
@@ -1296,7 +1297,7 @@ function SectionObj:CreateSlider(sldOpt)
         })
     })
 
-    -- 自定义颜色
+    -- 颜色常量
     local trackColor = Color3.fromRGB(36, 36, 36)
     local fillColor = Color3.fromRGB(255, 163, 26)
     local handleBg = Color3.fromRGB(24, 24, 24)
@@ -1304,16 +1305,16 @@ function SectionObj:CreateSlider(sldOpt)
     local handleBgHover = Color3.fromRGB(34, 34, 34)
     local handleBorderHover = Color3.fromRGB(80, 80, 80)
 
-    -- Track (高度 10px)
+    -- Track 容器 (高度 12px，略粗)
     local Track = Create("Frame", {
         Name = "Track",
-        Size = UDim2.new(1, -20, 0, 10),
+        Size = UDim2.new(1, -20, 0, 12),
         Position = UDim2.new(0, 10, 0, 30),
         BackgroundColor3 = trackColor,
         BorderSizePixel = 0,
         Parent = SldFrame
     }, {
-        MakeCorner(nil, 5)
+        MakeCorner(nil, 6)
     })
 
     -- Fill
@@ -1324,33 +1325,33 @@ function SectionObj:CreateSlider(sldOpt)
         BorderSizePixel = 0,
         Parent = Track
     }, {
-        MakeCorner(nil, 5)
+        MakeCorner(nil, 6)
     })
 
-    -- Handle (胶囊)
+    -- Handle (胶囊形，略大，触摸友好)
     local Handle = Create("Frame", {
         Name = "Handle",
-        Size = UDim2.new(0, 40, 0, 18),
+        Size = UDim2.new(0, 44, 0, 22),           -- 加大至 44×22
         BackgroundColor3 = handleBg,
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0, 0, 0.5, 0),
         ZIndex = 10,
         Parent = Track
     }, {
-        MakeCorner(nil, 5),
+        MakeCorner(nil, 6),
         Create("UIStroke", {
             Name = "Stroke",
             Color = handleBorder,
-            Thickness = 1,
+            Thickness = 1.5,
             Transparency = 0,
         }),
         Create("UIScale", { Name = "ScaleObject", Scale = 1 }),
         Create("TextLabel", {
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = "› ›",
+            Text = "‹ ›",                      -- 改成左右箭头，更清晰
             TextColor3 = fillColor,
-            TextSize = 12,
+            TextSize = 14,
             FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
         })
     })
@@ -1364,79 +1365,79 @@ function SectionObj:CreateSlider(sldOpt)
     local track = Track
 
     -- 状态
-    local dragging = false
+    local isDragging = false
     local currentYOffset = 0
     local targetValue = default
+    local activeTweens = {}  -- 存储正在运行的 Tween，用于取消
 
-    -- 缓存 Track 尺寸（拖动时使用）
-    local cachedTrackX = 0
-    local cachedTrackWidth = 0
+    -- 取消所有 handle 动画
+    local function CancelHandleTweens()
+        for _, tw in ipairs(activeTweens) do
+            if tw and tw.PlaybackState ~= Enum.PlaybackState.Completed then
+                tw:Cancel()
+            end
+        end
+        activeTweens = {}
+    end
 
-    -- 更新值 (直接设置位置，无 Tween)
+    -- 更新值核心函数
     local function SetValueInternal(val, updateCallback)
         val = math.clamp(val, min, max)
         targetValue = val
         local percent = (val - min) / (max - min)
-        -- 更新 Fill
         fill.Size = UDim2.new(percent, 0, 1, 0)
-        -- 更新数值文本（带微动画，仅当非拖动时）
-        if not dragging then
-            valLabel.Text = tostring(val)
-        else
-            valLabel.Text = tostring(val)
-        end
-        -- 更新 Handle 位置
-        local trackWidth = cachedTrackWidth > 0 and cachedTrackWidth or track.AbsoluteSize.X
+        valLabel.Text = tostring(val)
+        -- 计算 Handle 位置（实时读取 Track 尺寸）
+        local trackWidth = track.AbsoluteSize.X
         if trackWidth > 0 then
             local x = percent * trackWidth
             handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
         end
-        -- 更新 flag 和 callback
         Library.Flags[flag] = val
         if updateCallback ~= false then
             callback(val)
         end
     end
 
-    -- 从输入计算数值
+    -- 根据鼠标/触摸位置计算数值
     local function CalculateValueFromPosition(inputPos)
-        if cachedTrackWidth <= 0 then return end
-        local absX = inputPos.X
-        local percent = math.clamp((absX - cachedTrackX) / cachedTrackWidth, 0, 1)
+        local trackX = track.AbsolutePosition.X
+        local trackWidth = track.AbsoluteSize.X
+        if trackWidth <= 0 then return nil end
+        local percent = math.clamp((inputPos.X - trackX) / trackWidth, 0, 1)
         local rawVal = min + (max - min) * percent
         local steppedVal = math.floor(rawVal / increment + 0.5) * increment
-        steppedVal = math.clamp(steppedVal, min, max)
-        return steppedVal
+        return math.clamp(steppedVal, min, max)
     end
 
-    -- 拖动中更新（直接位置，不 Tween）
+    -- 拖动中更新（无动画，直接设置）
     local function UpdateDrag(inputPos)
-        if not dragging then return end
+        if not isDragging then return end
         local val = CalculateValueFromPosition(inputPos)
         if val then
             targetValue = val
-            -- 直接更新
             local percent = (val - min) / (max - min)
             fill.Size = UDim2.new(percent, 0, 1, 0)
             valLabel.Text = tostring(val)
-            local x = percent * cachedTrackWidth
-            handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+            local trackWidth = track.AbsoluteSize.X
+            if trackWidth > 0 then
+                local x = percent * trackWidth
+                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+            end
             Library.Flags[flag] = val
             callback(val)
         end
     end
 
-    -- 拖动开始
+    -- 拖动开始处理
     local function OnDragStart(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            -- 缓存 Track 尺寸
-            cachedTrackX = track.AbsolutePosition.X
-            cachedTrackWidth = track.AbsoluteSize.X
-            if cachedTrackWidth <= 0 then return end
-
-            dragging = true
+            -- 停止所有动画
+            CancelHandleTweens()
+            isDragging = true
             -- 放大 Handle
-            Library:Tween(handleScale, 0.1, { Scale = 1.04 })
+            local tw = Library:Tween(handleScale, 0.1, { Scale = 1.04 })
+            table.insert(activeTweens, tw)
             -- 立即更新一次
             local val = CalculateValueFromPosition(input.Position)
             if val then
@@ -1444,21 +1445,24 @@ function SectionObj:CreateSlider(sldOpt)
                 local percent = (val - min) / (max - min)
                 fill.Size = UDim2.new(percent, 0, 1, 0)
                 valLabel.Text = tostring(val)
-                local x = percent * cachedTrackWidth
-                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+                local trackWidth = track.AbsoluteSize.X
+                if trackWidth > 0 then
+                    local x = percent * trackWidth
+                    handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+                end
                 Library.Flags[flag] = val
                 callback(val)
             end
         end
     end
 
-    -- 绑定拖动开始到 Track 和 Handle
+    -- 绑定触摸/鼠标到 Track 和 Handle
     track.InputBegan:Connect(OnDragStart)
     handle.InputBegan:Connect(OnDragStart)
 
-    -- 全局输入变化（拖动中）
+    -- 全局移动事件
     RegisterConnection(UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             UpdateDrag(input.Position)
         end
     end))
@@ -1466,44 +1470,57 @@ function SectionObj:CreateSlider(sldOpt)
     -- 拖动结束
     RegisterConnection(UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then
-                dragging = false
-                Library:Tween(handleScale, 0.1, { Scale = 1 })
-                -- 恢复缓存，下次拖动重新获取
-                cachedTrackWidth = 0
-                -- 确保最终值准确（可能因触摸误差）
+            if isDragging then
+                isDragging = false
+                -- 恢复缩放
+                CancelHandleTweens()
+                local tw = Library:Tween(handleScale, 0.1, { Scale = 1 })
+                table.insert(activeTweens, tw)
+                -- 确保最终值准确
                 local finalVal = Library.Flags[flag] or targetValue
                 SetValueInternal(finalVal, false)
+                -- 如果鼠标仍在 handle 上，恢复 hover 状态
+                -- 但移动端无 hover，忽略
             end
         end
     end))
 
-    -- Hover 上移
+    -- Hover 进入 (仅在非拖动时生效)
     RegisterConnection(handle.MouseEnter:Connect(function()
+        if isDragging then return end
+        CancelHandleTweens()
         currentYOffset = -1
-        Library:Tween(handle, 0.12, {
+        local tw1 = Library:Tween(handle, 0.12, {
             Position = UDim2.new(0, handle.Position.X.Offset, 0.5, currentYOffset)
         })
-        Library:Tween(handle, 0.12, { BackgroundColor3 = handleBgHover })
+        local tw2 = Library:Tween(handle, 0.12, { BackgroundColor3 = handleBgHover })
         if handleStroke then
-            Library:Tween(handleStroke, 0.12, { Color = handleBorderHover })
+            local tw3 = Library:Tween(handleStroke, 0.12, { Color = handleBorderHover })
+            table.insert(activeTweens, tw3)
         end
+        table.insert(activeTweens, tw1)
+        table.insert(activeTweens, tw2)
     end))
 
     RegisterConnection(handle.MouseLeave:Connect(function()
+        if isDragging then return end
+        CancelHandleTweens()
         currentYOffset = 0
-        Library:Tween(handle, 0.12, {
+        local tw1 = Library:Tween(handle, 0.12, {
             Position = UDim2.new(0, handle.Position.X.Offset, 0.5, currentYOffset)
         })
-        Library:Tween(handle, 0.12, { BackgroundColor3 = handleBg })
+        local tw2 = Library:Tween(handle, 0.12, { BackgroundColor3 = handleBg })
         if handleStroke then
-            Library:Tween(handleStroke, 0.12, { Color = handleBorder })
+            local tw3 = Library:Tween(handleStroke, 0.12, { Color = handleBorder })
+            table.insert(activeTweens, tw3)
         end
+        table.insert(activeTweens, tw1)
+        table.insert(activeTweens, tw2)
     end))
 
-    -- 窗口大小变化时重新定位
+    -- 窗口尺寸变化时重新定位
     RegisterConnection(SldFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        if not dragging then
+        if not isDragging then
             local val = Library.Flags[flag] or default
             local percent = (val - min) / (max - min)
             local trackWidth = track.AbsoluteSize.X
@@ -1514,20 +1531,20 @@ function SectionObj:CreateSlider(sldOpt)
         end
     end))
 
-    -- 初始设置
-    local initPercent = (default - min) / (max - min)
-    fill.Size = UDim2.new(initPercent, 0, 1, 0)
-    valLabel.Text = tostring(default)
-    -- 延迟一帧获取尺寸
+    -- 初始化位置（延迟一帧确保布局完成）
     task.defer(function()
+        local val = Library.Flags[flag] or default
+        local percent = (val - min) / (max - min)
+        fill.Size = UDim2.new(percent, 0, 1, 0)
+        valLabel.Text = tostring(val)
         local trackWidth = track.AbsoluteSize.X
         if trackWidth > 0 then
-            local x = initPercent * trackWidth
+            local x = percent * trackWidth
             handle.Position = UDim2.new(0, x, 0.5, 0)
         end
     end)
 
-    -- 搜索注册
+    -- 注册搜索
     table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
 
     return {
