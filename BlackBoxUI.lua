@@ -1266,9 +1266,11 @@ function SectionObj:CreateSlider(sldOpt)
 
     Library.Flags[flag] = default
 
-    -- 主容器
+    -- ========================================
+    -- UI 构建
+    -- ========================================
     local SldFrame = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 52),
+        Size = UDim2.new(1, 0, 0, 56),
         BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
         Parent = SectionCard
     }, {
@@ -1297,94 +1299,76 @@ function SectionObj:CreateSlider(sldOpt)
         })
     })
 
-    -- 颜色定义（恒定）
-    local trackColor = Color3.fromRGB(36, 36, 36)
-    local fillColorBase = Color3.fromRGB(255, 163, 26)     -- 基础黄色
-    local fillColorDark = Color3.fromRGB(180, 110, 10)    -- 暗黄
-    local fillColorBright = Color3.fromRGB(255, 209, 92)  -- 亮黄
-    local handleBg = Color3.fromRGB(24, 24, 24)
-    local handleBorder = Color3.fromRGB(58, 58, 58)
-    local handleBgHover = Color3.fromRGB(34, 34, 34)
-    local handleBorderHover = Color3.fromRGB(80, 80, 80)
-    local handleBorderDrag = Color3.fromRGB(120, 120, 120)
-
-    -- 构建 UI
+    -- Track
     local Track = Create("Frame", {
         Name = "Track",
-        Size = UDim2.new(1, -20, 0, 10),
+        Size = UDim2.new(1, -20, 0, 12),
         Position = UDim2.new(0, 10, 0, 30),
-        BackgroundColor3 = trackColor,
+        BackgroundColor3 = Color3.fromRGB(36, 36, 36),
         BorderSizePixel = 0,
         Parent = SldFrame
     }, {
-        MakeCorner(nil, 5)
+        MakeCorner(nil, 6)
     })
 
+    -- Fill
     local Fill = Create("Frame", {
         Name = "Fill",
         Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
-        BackgroundColor3 = fillColorBase,
+        BackgroundColor3 = Color3.fromRGB(255, 163, 26),
         BorderSizePixel = 0,
         Parent = Track
     }, {
-        MakeCorner(nil, 5)
+        MakeCorner(nil, 6)
     })
 
-    -- Handle (胶囊)
+    -- Handle（视觉尺寸 44×22，hitbox 通过外层透明按钮扩大）
     local Handle = Create("Frame", {
         Name = "Handle",
-        Size = UDim2.new(0, 40, 0, 18),
-        BackgroundColor3 = handleBg,
+        Size = UDim2.new(0, 44, 0, 22),
+        BackgroundColor3 = Color3.fromRGB(24, 24, 24),
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0, 0, 0.5, 0),
         ZIndex = 10,
         Parent = Track
     }, {
-        MakeCorner(nil, 5),
+        MakeCorner(nil, 6),
         Create("UIStroke", {
             Name = "Stroke",
-            Color = handleBorder,
-            Thickness = 1,
+            Color = Color3.fromRGB(58, 58, 58),
+            Thickness = 1.5,
             Transparency = 0,
         }),
         Create("UIScale", { Name = "ScaleObject", Scale = 1 }),
         Create("TextLabel", {
-            Name = "Indicator",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = "› ›",
-            TextColor3 = fillColorBase,
-            TextSize = 12,
+            Text = "‹ ›",
+            TextColor3 = Color3.fromRGB(255, 163, 26),
+            TextSize = 14,
             FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
         })
     })
 
-    -- 引用
-    local valLabel = SldFrame.ValueLabel
-    local fill = Fill
-    local handle = Handle
-    local handleStroke = Handle:FindFirstChild("Stroke")
-    local handleScale = Handle:FindFirstChild("ScaleObject")
-    local indicator = Handle:FindFirstChild("Indicator")
-    local track = Track
+    -- 扩大 Hitbox（透明按钮覆盖整个 Track，触摸优先）
+    local Hitbox = Create("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        Parent = Track
+    })
 
-    -- 状态机变量
-    local State = {
-        IDLE = "Idle",
-        HOVER = "Hover",
-        PRESSED = "Pressed",
-        DRAGGING = "Dragging",
-        RELEASING = "Releasing"
-    }
-    local currentState = State.IDLE
+    -- ========================================
+    -- 状态与变量
+    -- ========================================
+    local state = "idle"  -- idle | hover | pressed | dragging | releasing
     local isDragging = false
-    local currentYOffset = 0
-    local targetValue = default
-    local activeTweens = {}          -- 存储所有正在运行的tween，便于取消
-    local lastValueUpdateTime = 0
+    local isHovering = false
+    local currentValue = default
+    local activeTweens = {}
+    local connections = {}
 
-    -- ---- 工具函数 ----
-    local function CancelAllTweens()
+    local function cancelAllTweens()
         for _, tw in ipairs(activeTweens) do
             if tw and tw.PlaybackState ~= Enum.PlaybackState.Completed then
                 tw:Cancel()
@@ -1393,44 +1377,163 @@ function SectionObj:CreateSlider(sldOpt)
         activeTweens = {}
     end
 
-    local function AddTween(tween)
-        table.insert(activeTweens, tween)
+    local function cleanupConnections()
+        for _, conn in ipairs(connections) do
+            if conn and conn.Connected then conn:Disconnect() end
+        end
+        connections = {}
     end
 
-    -- ---- 核心更新函数（不带动画） ----
-    local function SetValueInternal(val, updateCallback)
+    -- ========================================
+    -- 核心更新函数（实时，无动画）
+    -- ========================================
+    local function updateValue(val, updateCallback)
         val = math.clamp(val, min, max)
-        targetValue = val
+        currentValue = val
         local percent = (val - min) / (max - min)
-
-        -- 更新 Fill 尺寸
-        fill.Size = UDim2.new(percent, 0, 1, 0)
-
-        -- 根据百分比调整 Fill 颜色（0%暗 → 100%亮）
-        local fillColor = fillColorBase:Lerp(fillColorBright, percent):Lerp(fillColorDark, 1 - percent)
-        fill.BackgroundColor3 = fillColor
-
-        -- 更新数值文本（直接更新，微动画在别处触发）
-        valLabel.Text = tostring(val)
-
-        -- 更新 Handle 位置（实时）
-        local trackWidth = track.AbsoluteSize.X
+        Fill.Size = UDim2.new(percent, 0, 1, 0)
+        local trackWidth = Track.AbsoluteSize.X
         if trackWidth > 0 then
-            local x = percent * trackWidth
-            handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+            Handle.Position = UDim2.new(0, percent * trackWidth, 0.5, 0)
         end
-
-        -- 更新 Flag 和回调
         Library.Flags[flag] = val
         if updateCallback ~= false then
             callback(val)
         end
     end
 
-    -- ---- 数值计算 ----
-    local function CalculateValueFromPosition(inputPos)
-        local trackX = track.AbsolutePosition.X
-        local trackWidth = track.AbsoluteSize.X
+    -- ========================================
+    -- 状态切换动画
+    -- ========================================
+    local function setState(newState)
+        if state == newState then return end
+        state = newState
+        cancelAllTweens()
+
+        local handleScaleObj = Handle:FindFirstChild("ScaleObject")
+        local handleStroke = Handle:FindFirstChild("Stroke")
+        local handleBg = Handle
+
+        if state == "idle" then
+            -- 回到静止
+            local tw1 = Library:Tween(handleScaleObj, 0.12, { Scale = 1 })
+            local tw2 = Library:Tween(Handle, 0.12, { BackgroundColor3 = Color3.fromRGB(24, 24, 24) })
+            if handleStroke then
+                local tw3 = Library:Tween(handleStroke, 0.12, { Color = Color3.fromRGB(58, 58, 58) })
+                table.insert(activeTweens, tw3)
+            end
+            table.insert(activeTweens, tw1)
+            table.insert(activeTweens, tw2)
+        elseif state == "hover" then
+            -- Hover: scale 1.03, Y -1, border 增亮
+            local tw1 = Library:Tween(handleScaleObj, 0.10, { Scale = 1.03 })
+            local tw2 = Library:Tween(Handle, 0.10, { BackgroundColor3 = Color3.fromRGB(34, 34, 34) })
+            if handleStroke then
+                local tw3 = Library:Tween(handleStroke, 0.10, { Color = Color3.fromRGB(80, 80, 80) })
+                table.insert(activeTweens, tw3)
+            end
+            table.insert(activeTweens, tw1)
+            table.insert(activeTweens, tw2)
+            -- Y 偏移通过 Position 微调
+            local currentPos = Handle.Position
+            local twY = Library:Tween(Handle, 0.10, { Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0.5, -1) })
+            table.insert(activeTweens, twY)
+        elseif state == "pressed" then
+            -- 按下压缩：1.03 → 0.98 快速，然后恢复
+            local tw1 = Library:Tween(handleScaleObj, 0.07, { Scale = 0.98 })
+            tw1.Completed:Connect(function()
+                if state == "pressed" then
+                    local tw2 = Library:Tween(handleScaleObj, 0.07, { Scale = 1.03 })
+                    table.insert(activeTweens, tw2)
+                end
+            end)
+            table.insert(activeTweens, tw1)
+        elseif state == "dragging" then
+            -- 拖拽开始：scale 1.06，Y +1，border 更亮
+            local tw1 = Library:Tween(handleScaleObj, 0.08, { Scale = 1.06 })
+            local tw2 = Library:Tween(Handle, 0.08, { BackgroundColor3 = Color3.fromRGB(38, 38, 38) })
+            if handleStroke then
+                local tw3 = Library:Tween(handleStroke, 0.08, { Color = Color3.fromRGB(120, 120, 120) })
+                table.insert(activeTweens, tw3)
+            end
+            table.insert(activeTweens, tw1)
+            table.insert(activeTweens, tw2)
+            -- Y 偏移 +1
+            local currentPos = Handle.Position
+            local twY = Library:Tween(Handle, 0.08, { Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0.5, 1) })
+            table.insert(activeTweens, twY)
+        elseif state == "releasing" then
+            -- 释放：从当前缩放平滑回到 idle（但 scale 实际会在 idle 中处理，此处可做过渡）
+            -- 直接回到 idle，但加上一个 overshoot 抑制
+            local tw1 = Library:Tween(handleScaleObj, 0.14, { Scale = 1.0 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            local tw2 = Library:Tween(Handle, 0.14, { BackgroundColor3 = Color3.fromRGB(24, 24, 24) })
+            if handleStroke then
+                local tw3 = Library:Tween(handleStroke, 0.14, { Color = Color3.fromRGB(58, 58, 58) })
+                table.insert(activeTweens, tw3)
+            end
+            table.insert(activeTweens, tw1)
+            table.insert(activeTweens, tw2)
+            -- Y 归零
+            local currentPos = Handle.Position
+            local twY = Library:Tween(Handle, 0.14, { Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0.5, 0) })
+            table.insert(activeTweens, twY)
+            -- 完成后进入 idle
+            tw1.Completed:Connect(function()
+                if state == "releasing" then
+                    setState("idle")
+                end
+            end)
+        end
+    end
+
+    -- ========================================
+    -- 数值微动画（数字变化）
+    -- ========================================
+    local valueAnimTween = nil
+    local function animateValueLabel(newVal)
+        local label = SldFrame.ValueLabel
+        label.Text = tostring(newVal)
+        -- 取消旧动画
+        if valueAnimTween and valueAnimTween.PlaybackState ~= Enum.PlaybackState.Completed then
+            valueAnimTween:Cancel()
+        end
+        -- 微动画：透明度 0.6->1，Y 向下 2px 归位
+        label.Transparency = 0.6
+        local oldPos = label.Position
+        label.Position = UDim2.new(oldPos.X.Scale, oldPos.X.Offset, oldPos.Y.Scale, oldPos.Y.Offset + 2)
+        local tw = Library:Tween(label, 0.08, { Transparency = 1, Position = oldPos })
+        valueAnimTween = tw
+    end
+
+    -- ========================================
+    -- Snap 反馈
+    -- ========================================
+    local function triggerSnap()
+        if increment <= 1 then return end
+        local handleScaleObj = Handle:FindFirstChild("ScaleObject")
+        if not handleScaleObj then return end
+        cancelAllTweens()  -- 只取消现有动画，但会影响状态，我们可以只额外加一个短暂动画而不改变状态
+        -- 快速缩放到 1.05 再回到当前状态目标值
+        local currentScale = handleScaleObj.Scale
+        local tw1 = Library:Tween(handleScaleObj, 0.06, { Scale = 1.05 })
+        tw1.Completed:Connect(function()
+            local targetScale = (state == "dragging" and 1.06) or (state == "hover" and 1.03) or 1.0
+            if state == "idle" then targetScale = 1.0
+            elseif state == "hover" then targetScale = 1.03
+            elseif state == "dragging" then targetScale = 1.06
+            elseif state == "pressed" then targetScale = 1.03 end
+            local tw2 = Library:Tween(handleScaleObj, 0.06, { Scale = targetScale })
+            table.insert(activeTweens, tw2)
+        end)
+        table.insert(activeTweens, tw1)
+    end
+
+    -- ========================================
+    -- 数值计算与输入处理
+    -- ========================================
+    local function getValueFromPosition(inputPos)
+        local trackX = Track.AbsolutePosition.X
+        local trackWidth = Track.AbsoluteSize.X
         if trackWidth <= 0 then return nil end
         local percent = math.clamp((inputPos.X - trackX) / trackWidth, 0, 1)
         local rawVal = min + (max - min) * percent
@@ -1438,287 +1541,133 @@ function SectionObj:CreateSlider(sldOpt)
         return math.clamp(steppedVal, min, max)
     end
 
-    -- ---- 状态切换函数 ----
-    local function GoToState(newState)
-        if currentState == newState then return end
-        local prevState = currentState
-        currentState = newState
-
-        -- 取消所有正在运行的动画
-        CancelAllTweens()
-
-        -- 根据新状态执行入场动画
-        if newState == State.IDLE then
-            -- 恢复到完全静止
-            currentYOffset = 0
-            local tw1 = Library:Tween(handle, 0.12, {
-                Position = UDim2.new(0, handle.Position.X.Offset, 0.5, 0)
-            }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tw2 = Library:Tween(handle, 0.12, { BackgroundColor3 = handleBg }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tw3 = Library:Tween(handleScale, 0.12, { Scale = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            if handleStroke then
-                local tw4 = Library:Tween(handleStroke, 0.12, { Color = handleBorder }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw4)
-            end
-            AddTween(tw1); AddTween(tw2); AddTween(tw3)
-            -- 指示器颜色恢复
-            if indicator then
-                local tw5 = Library:Tween(indicator, 0.12, { TextColor3 = fillColorBase }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw5)
-            end
-            -- 恢复 Track 亮度（无变化，无需 tween）
-        elseif newState == State.HOVER then
-            currentYOffset = -1
-            local tw1 = Library:Tween(handle, 0.10, {
-                Position = UDim2.new(0, handle.Position.X.Offset, 0.5, -1)
-            }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tw2 = Library:Tween(handle, 0.10, { BackgroundColor3 = handleBgHover }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tw3 = Library:Tween(handleScale, 0.10, { Scale = 1.03 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            if handleStroke then
-                local tw4 = Library:Tween(handleStroke, 0.10, { Color = handleBorderHover }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw4)
-            end
-            if indicator then
-                local tw5 = Library:Tween(indicator, 0.10, { TextColor3 = fillColorBright }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw5)
-            end
-            AddTween(tw1); AddTween(tw2); AddTween(tw3)
-        elseif newState == State.PRESSED then
-            -- 按下压缩效果：迅速缩小到 0.98，然后快速恢复（但这里我们直接触发一个脉冲）
-            -- 为了模拟按下，我们快速缩小再恢复，但不会进入 PRESSED 状态太久，通常立即过渡到 DRAGGING
-            -- 此处我们只做压缩动画，然后由外部触发 DRAGGING
-            local tw1 = Library:Tween(handleScale, 0.06, { Scale = 0.98 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            AddTween(tw1)
-            -- 在 0.06 后恢复
-            task.delay(0.06, function()
-                if currentState == State.PRESSED then
-                    local tw2 = Library:Tween(handleScale, 0.06, { Scale = 1.03 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                    AddTween(tw2)
+    -- 拖动更新（实时）
+    local function onDragUpdate(inputPos)
+        local val = getValueFromPosition(inputPos)
+        if val then
+            local oldVal = currentValue
+            updateValue(val, true)
+            animateValueLabel(val)
+            -- Snap 检测
+            if increment > 1 and math.abs(val % increment) < 0.001 then
+                if val ~= oldVal then  -- 跨过 snap 点
+                    triggerSnap()
                 end
-            end)
-        elseif newState == State.DRAGGING then
-            -- 进入拖动：从 press 或 hover 状态放大到 1.06，边框更亮
-            currentYOffset = -1
-            local tw1 = Library:Tween(handle, 0.08, {
-                Position = UDim2.new(0, handle.Position.X.Offset, 0.5, -1)
-            }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tw2 = Library:Tween(handleScale, 0.08, { Scale = 1.06 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            if handleStroke then
-                local tw3 = Library:Tween(handleStroke, 0.08, { Color = handleBorderDrag }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw3)
             end
-            if indicator then
-                local tw4 = Library:Tween(indicator, 0.08, { TextColor3 = fillColorBright }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw4)
-            end
-            AddTween(tw1); AddTween(tw2)
-        elseif newState == State.RELEASING then
-            -- 释放动画：从当前 scale 回落到 1.02 再到 1.00，位置归位，边框恢复
-            -- 我们直接设置目标为 Idle 状态的参数
-            currentYOffset = 0
-            local tw1 = Library:Tween(handle, 0.14, {
-                Position = UDim2.new(0, handle.Position.X.Offset, 0.5, 0)
-            }, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-            local tw2 = Library:Tween(handleScale, 0.14, { Scale = 1.02 }, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-            -- 再接着回到1.00（分两步，更自然）
-            task.delay(0.07, function()
-                if currentState == State.RELEASING then
-                    local tw3 = Library:Tween(handleScale, 0.10, { Scale = 1.00 }, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-                    AddTween(tw3)
-                end
-            end)
-            local tw4 = Library:Tween(handle, 0.14, { BackgroundColor3 = handleBg }, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-            if handleStroke then
-                local tw5 = Library:Tween(handleStroke, 0.14, { Color = handleBorder }, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-                AddTween(tw5)
-            end
-            if indicator then
-                local tw6 = Library:Tween(indicator, 0.14, { TextColor3 = fillColorBase }, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-                AddTween(tw6)
-            end
-            AddTween(tw1); AddTween(tw2); AddTween(tw4)
         end
     end
 
-    -- ---- 输入处理 ----
-    local function OnDragStart(input)
+    -- ========================================
+    -- 输入事件绑定
+    -- ========================================
+    local function onInputBegan(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            -- 取消所有旧动画
-            CancelAllTweens()
-            -- 先进入 Pressed 状态（压缩反馈）
-            GoToState(State.PRESSED)
-            isDragging = true
-            -- 快速切换到 Dragging 状态（但在 pressed 动画之后，我们延迟一点）
-            task.delay(0.08, function()
-                if isDragging then
-                    GoToState(State.DRAGGING)
-                    -- 立即更新到当前鼠标位置
-                    local val = CalculateValueFromPosition(input.Position)
-                    if val then
-                        SetValueInternal(val, true)
-                    end
-                end
-            end)
-            -- 同时，立即更新一次，不等待
-            local val = CalculateValueFromPosition(input.Position)
-            if val then
-                SetValueInternal(val, true)
+            -- 按下
+            if state == "idle" then
+                setState("pressed")
+                -- 短暂延迟进入 dragging（如果移动则自动切换）
             end
+            isDragging = true
+            -- 先更新到点击位置
+            local val = getValueFromPosition(input.Position)
+            if val then
+                updateValue(val, true)
+                animateValueLabel(val)
+            end
+            -- 进入 dragging 状态（覆盖 pressed）
+            setState("dragging")
         end
     end
 
-    -- 绑定开始事件到 Track 和 Handle
-    track.InputBegan:Connect(OnDragStart)
-    handle.InputBegan:Connect(OnDragStart)
-
-    -- 全局移动事件 (用于实时拖动)
-    RegisterConnection(UserInputService.InputChanged:Connect(function(input)
-        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local val = CalculateValueFromPosition(input.Position)
-            if val then
-                -- 直接更新（无动画）
-                SetValueInternal(val, true)
-                -- 值微动画：仅在非快速拖动时触发（判断间隔）
-                local now = os.clock()
-                if now - lastValueUpdateTime > 0.08 then
-                    -- 每次更新值，让数值标签有一个简单的缩放脉冲
-                    lastValueUpdateTime = now
-                    local tw = Library:Tween(valLabel, 0.08, { TextScaled = true }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                    -- 但 TextScaled 不可靠，我们使用 Scale 或透明度？我们用透明度做微闪
-                    local oldTrans = valLabel.TextTransparency
-                    valLabel.TextTransparency = 0.2
-                    task.delay(0.06, function()
-                        valLabel.TextTransparency = oldTrans
-                    end)
-                end
-            end
-        end
-    end))
-
-    -- 拖动结束
-    RegisterConnection(UserInputService.InputEnded:Connect(function(input)
+    local function onInputEnded(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if isDragging then
                 isDragging = false
-                -- 进入释放状态
-                GoToState(State.RELEASING)
-                -- 最终值同步
-                local finalVal = Library.Flags[flag] or targetValue
-                SetValueInternal(finalVal, false)
-                -- 完成后切换到 Idle 或 Hover（取决于鼠标位置）
-                task.delay(0.16, function()
-                    if currentState == State.RELEASING then
-                        -- 简单判断鼠标是否在 Handle 上？但移动端没有 hover，直接 idle
-                        GoToState(State.IDLE)
-                    end
-                end)
-            end
-        end
-    end))
-
-    -- ---- Hover 事件（仅桌面） ----
-    RegisterConnection(handle.MouseEnter:Connect(function()
-        if not isDragging then
-            GoToState(State.HOVER)
-        end
-    end))
-
-    RegisterConnection(handle.MouseLeave:Connect(function()
-        if not isDragging then
-            GoToState(State.IDLE)
-        end
-    end))
-
-    -- ---- 窗口尺寸变化时重新定位 ----
-    RegisterConnection(SldFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        if not isDragging then
-            local val = Library.Flags[flag] or default
-            local percent = (val - min) / (max - min)
-            local trackWidth = track.AbsoluteSize.X
-            if trackWidth > 0 then
-                local x = percent * trackWidth
-                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
-            end
-        end
-    end))
-
-    -- ---- Snap Feedback (当值接近 increment 倍数时触发) ----
-    -- 我们监听值变化，在 SetValueInternal 里判断
-    local oldSnapValue = nil
-    local function CheckSnap(val)
-        if increment <= 1 then return end
-        local snap = math.floor(val / increment + 0.5) * increment
-        if snap ~= oldSnapValue then
-            oldSnapValue = snap
-            -- 触发一个极轻的脉冲
-            if not isDragging then
-                -- 仅在非拖动时触发，拖动时我们已经有了持续动画
-                local tw = Library:Tween(handleScale, 0.06, { Scale = 1.05 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                AddTween(tw)
-                task.delay(0.06, function()
-                    if currentState ~= State.DRAGGING then
-                        local tw2 = Library:Tween(handleScale, 0.06, { Scale = 1.00 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-                        AddTween(tw2)
-                    end
-                end)
+                setState("releasing")
+                -- 最终同步一次值
+                updateValue(currentValue, false)
             end
         end
     end
-    -- 在 SetValueInternal 后调用 CheckSnap
-    -- 我们需要在 SetValueInternal 末尾添加调用
-    -- 但为了不破坏已有函数，我们重写 SetValueInternal 添加调用
-    -- 实际上我们可以直接修改上面的 SetValueInternal，但为了清晰，我在这里重新定义
-    -- 但由于上面已经定义，我们将其替换为新的版本，包含 snap 检查
-    -- 但为了保持代码简洁，我将重写 SetValueInternal 包含 snap 检查
 
-    -- 重新定义 SetValueInternal（覆盖之前的）
-    SetValueInternal = function(val, updateCallback)
-        val = math.clamp(val, min, max)
-        targetValue = val
-        local percent = (val - min) / (max - min)
-
-        fill.Size = UDim2.new(percent, 0, 1, 0)
-        local fillColor = fillColorBase:Lerp(fillColorBright, percent):Lerp(fillColorDark, 1 - percent)
-        fill.BackgroundColor3 = fillColor
-
-        valLabel.Text = tostring(val)
-
-        local trackWidth = track.AbsoluteSize.X
-        if trackWidth > 0 then
-            local x = percent * trackWidth
-            handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+    local function onInputChanged(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            onDragUpdate(input.Position)
         end
-
-        Library.Flags[flag] = val
-        if updateCallback ~= false then
-            callback(val)
-        end
-
-        -- Snap 检查
-        CheckSnap(val)
     end
 
-    -- ---- 初始化 ----
-    -- 设置初始位置
-    task.defer(function()
-        local val = Library.Flags[flag] or default
-        SetValueInternal(val, false)
-        GoToState(State.IDLE)
-    end)
+    -- 绑定 Hitbox
+    connections[#connections+1] = Hitbox.InputBegan:Connect(onInputBegan)
+    connections[#connections+1] = Hitbox.InputEnded:Connect(onInputEnded)
 
-    -- 注册到搜索
-    table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
+    -- 全局移动和结束（确保鼠标移出窗口时释放）
+    connections[#connections+1] = RegisterConnection(UserInputService.InputChanged:Connect(onInputChanged))
+    connections[#connections+1] = RegisterConnection(UserInputService.InputEnded:Connect(onInputEnded))
 
-    -- ---- 外部接口 ----
-    return {
+    -- Hover 事件（仅鼠标）
+    local function onMouseEnter()
+        if not isDragging and state ~= "hover" and state ~= "pressed" then
+            setState("hover")
+        end
+    end
+    local function onMouseLeave()
+        if not isDragging and state == "hover" then
+            setState("idle")
+        end
+    end
+    connections[#connections+1] = Handle.MouseEnter:Connect(onMouseEnter)
+    connections[#connections+1] = Handle.MouseLeave:Connect(onMouseLeave)
+    -- 同时让 Hitbox 也能触发 hover（扩大区域）
+    connections[#connections+1] = Hitbox.MouseEnter:Connect(onMouseEnter)
+    connections[#connections+1] = Hitbox.MouseLeave:Connect(onMouseLeave)
+
+    -- 窗口尺寸变化时重新定位 Handle
+    local function onSizeChange()
+        if not isDragging then
+            updateValue(currentValue, false)
+        end
+    end
+    connections[#connections+1] = Track:GetPropertyChangedSignal("AbsoluteSize"):Connect(onSizeChange)
+
+    -- ========================================
+    -- 初始化状态与位置
+    -- ========================================
+    updateValue(default, false)
+    animateValueLabel(default)
+    setState("idle")
+
+    -- ========================================
+    -- 对外 API
+    -- ========================================
+    local self = {
         SetValue = function(val)
-            SetValueInternal(val, true)
-            if not isDragging then
-                -- 如果不是拖动中，触发一个平滑过渡
-                GoToState(State.IDLE)  -- 让 handle 归位
+            val = math.clamp(val, min, max)
+            updateValue(val, true)
+            animateValueLabel(val)
+            if state == "idle" then
+                -- 若在 idle，可触发微反馈
             end
         end
     }
+
+    -- 清理（当 Slider 被销毁时，断开所有连接）
+    local function cleanup()
+        cleanupConnections()
+        cancelAllTweens()
+    end
+    -- 利用父容器销毁事件自动清理（可选）
+    SldFrame.AncestryChanged:Connect(function()
+        if not SldFrame.Parent then
+            cleanup()
+        end
+    end)
+
+    -- 注册到全局清理（当 Library:Destroy 时也会断开）
+    RegisterConnection(SldFrame.AncestryChanged:Connect(function() end)) -- dummy 占位，实际靠上面
+
+    table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
+
+    return self
 end
 
             -- 4. DROPDOWN
