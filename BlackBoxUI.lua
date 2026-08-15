@@ -1240,111 +1240,247 @@ function Library:CreateWindow(options)
                 return { SetValue = SetState }
             end
 
-            -- 3. SLIDER
-            function SectionObj:CreateSlider(sldOpt)
-                sldOpt = sldOpt or {}
-                local name = sldOpt.Name or "Slider"
-                local min = sldOpt.Min or 0
-                local max = sldOpt.Max or 100
-                local default = math.clamp(sldOpt.Default or min, min, max)
-                local increment = sldOpt.Increment or 1
-                local flag = sldOpt.Flag or name
-                local callback = sldOpt.Callback or function() end
+-- 重写 Slider 部分 (位于 SectionObj:CreateSlider 函数内)
+function SectionObj:CreateSlider(sldOpt)
+    sldOpt = sldOpt or {}
+    local name = sldOpt.Name or "Slider"
+    local min = sldOpt.Min or 0
+    local max = sldOpt.Max or 100
+    local default = math.clamp(sldOpt.Default or min, min, max)
+    local increment = sldOpt.Increment or 1
+    local flag = sldOpt.Flag or name
+    local callback = sldOpt.Callback or function() end
 
-                Library.Flags[flag] = default
+    Library.Flags[flag] = default
 
-                local SldFrame = Create("Frame", {
-                    Size = UDim2.new(1, 0, 0, 48),
-                    BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
-                    Parent = SectionCard
-                }, {
-                    MakeCorner(nil, 5),
-                    MakeStroke(nil, Library.CurrentTheme.Border, 1),
-                    Create("TextLabel", {
-                        Size = UDim2.new(1, -80, 0, 20),
-                        Position = UDim2.new(0, 10, 0, 4),
-                        BackgroundTransparency = 1,
-                        Text = name,
-                        TextColor3 = Library.CurrentTheme.TextPrimary,
-                        TextSize = 13,
-                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-                        TextXAlignment = Enum.TextXAlignment.Left
-                    }),
-                    Create("TextLabel", {
-                        Name = "ValueLabel",
-                        Size = UDim2.new(0, 60, 0, 20),
-                        Position = UDim2.new(1, -70, 0, 4),
-                        BackgroundTransparency = 1,
-                        Text = tostring(default),
-                        TextColor3 = Library.CurrentTheme.Accent,
-                        TextSize = 12,
-                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-                        TextXAlignment = Enum.TextXAlignment.Right
-                    }),
-                    Create("Frame", {
-                        Name = "Track",
-                        Size = UDim2.new(1, -20, 0, 6),
-                        Position = UDim2.new(0, 10, 0, 30),
-                        BackgroundColor3 = Library.CurrentTheme.Border,
-                        Parent = SldFrame
-                    }, {
-                        MakeCorner(nil, 3),
-                        Create("Frame", {
-                            Name = "Fill",
-                            Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
-                            BackgroundColor3 = Library.CurrentTheme.Accent,
-                            BorderSizePixel = 0
-                        }, { MakeCorner(nil, 3) })
-                    })
-                })
+    -- 主容器
+    local SldFrame = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 52),
+        BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
+        Parent = SectionCard
+    }, {
+        MakeCorner(nil, 5),
+        MakeStroke(nil, Library.CurrentTheme.Border, 1),
+        Create("TextLabel", {
+            Size = UDim2.new(1, -80, 0, 20),
+            Position = UDim2.new(0, 10, 0, 4),
+            BackgroundTransparency = 1,
+            Text = name,
+            TextColor3 = Library.CurrentTheme.TextPrimary,
+            TextSize = 13,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            TextXAlignment = Enum.TextXAlignment.Left
+        }),
+        Create("TextLabel", {
+            Name = "ValueLabel",
+            Size = UDim2.new(0, 60, 0, 20),
+            Position = UDim2.new(1, -70, 0, 4),
+            BackgroundTransparency = 1,
+            Text = tostring(default),
+            TextColor3 = Library.CurrentTheme.Accent,
+            TextSize = 12,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            TextXAlignment = Enum.TextXAlignment.Right
+        })
+    })
 
-                local track = SldFrame.Track
-                local fill = track.Fill
-                local valLabel = SldFrame.ValueLabel
-                local dragging = false
+    -- 自定义颜色
+    local trackColor = Color3.fromRGB(36, 36, 36)      -- #242424
+    local fillColor = Color3.fromRGB(255, 163, 26)      -- #FFA31A
+    local handleBg = Color3.fromRGB(24, 24, 24)         -- #181818
+    local handleBorder = Color3.fromRGB(58, 58, 58)     -- #3A3A3A
+    local handleBgHover = Color3.fromRGB(34, 34, 34)    -- 变亮
+    local handleBorderHover = Color3.fromRGB(80, 80, 80)
 
-                local function UpdateValue(inputPos)
-                    local percent = math.clamp((inputPos.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-                    local rawVal = min + (max - min) * percent
-                    local steppedVal = math.floor(rawVal / increment + 0.5) * increment
-                    steppedVal = math.clamp(steppedVal, min, max)
+    -- Track 容器 (高度 10px)
+    local Track = Create("Frame", {
+        Name = "Track",
+        Size = UDim2.new(1, -20, 0, 10),
+        Position = UDim2.new(0, 10, 0, 30),
+        BackgroundColor3 = trackColor,
+        BorderSizePixel = 0,
+        Parent = SldFrame
+    }, {
+        MakeCorner(nil, 5)
+    })
 
-                    fill.Size = UDim2.new((steppedVal - min) / (max - min), 0, 1, 0)
-                    valLabel.Text = tostring(steppedVal)
-                    Library.Flags[flag] = steppedVal
-                    callback(steppedVal)
-                end
+    -- Fill (进度条，颜色黄色)
+    local Fill = Create("Frame", {
+        Name = "Fill",
+        Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = fillColor,
+        BorderSizePixel = 0,
+        Parent = Track
+    }, {
+        MakeCorner(nil, 5)
+    })
 
-                track.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragging = true
-                        UpdateValue(input.Position)
-                    end
-                end)
+    -- Handle (悬浮胶囊)
+    local Handle = Create("Frame", {
+        Name = "Handle",
+        Size = UDim2.new(0, 40, 0, 18),
+        BackgroundColor3 = handleBg,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        ZIndex = 10,
+        Parent = Track
+    }, {
+        MakeCorner(nil, 5),
+        Create("UIStroke", {
+            Color = handleBorder,
+            Thickness = 1,
+            Transparency = 0,
+        }),
+        Create("UIScale", { Name = "ScaleObject", Scale = 1 }),
+        Create("TextLabel", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "› ›",
+            TextColor3 = fillColor,
+            TextSize = 12,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        })
+    })
 
-                UserInputService.InputChanged:Connect(function(input)
-                    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                        UpdateValue(input.Position)
-                    end
-                end)
+    -- 获取子对象
+    local valLabel = SldFrame.ValueLabel
+    local track = Track
+    local fill = Fill
+    local handle = Handle
+    local handleStroke = handle:FindFirstChild("UIStroke")
+    local handleScale = handle:FindFirstChild("ScaleObject")
 
-                UserInputService.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragging = false
-                    end
-                end)
+    -- 状态变量
+    local dragging = false
+    local currentYOffset = 0          -- 用于 hover 上移
+    local targetValue = default
 
-                table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
-                return {
-                    SetValue = function(val)
-                        val = math.clamp(val, min, max)
-                        fill.Size = UDim2.new((val - min) / (max - min), 0, 1, 0)
-                        valLabel.Text = tostring(val)
-                        Library.Flags[flag] = val
-                        callback(val)
-                    end
-                }
+    -- 更新值函数 (直接设置，无 Tween)
+    local function UpdateValueFromInput(inputPos)
+        -- 计算百分比
+        local absPos = inputPos.X
+        local trackLeft = track.AbsolutePosition.X
+        local trackWidth = track.AbsoluteSize.X
+        if trackWidth <= 0 then return end
+        local percent = math.clamp((absPos - trackLeft) / trackWidth, 0, 1)
+        local rawVal = min + (max - min) * percent
+        local steppedVal = math.floor(rawVal / increment + 0.5) * increment
+        steppedVal = math.clamp(steppedVal, min, max)
+        targetValue = steppedVal
+
+        -- 更新 Fill
+        fill.Size = UDim2.new((steppedVal - min) / (max - min), 0, 1, 0)
+        -- 更新数值文本
+        valLabel.Text = tostring(steppedVal)
+        -- 更新 Handle 位置 (X 轴)
+        local handleX = ((steppedVal - min) / (max - min)) * trackWidth
+        handle.Position = UDim2.new(0, handleX, 0.5, currentYOffset)
+        -- 存储 Flag 并回调
+        Library.Flags[flag] = steppedVal
+        callback(steppedVal)
+    end
+
+    -- 拖动开始处理
+    local function OnDragStart(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            UpdateValueFromInput(input.Position)
+            -- 放大 Handle (Tween)
+            Library:Tween(handleScale, 0.1, { Scale = 1.04 })
+        end
+    end
+
+    -- 绑定拖动开始到 Track 和 Handle
+    track.InputBegan:Connect(OnDragStart)
+    handle.InputBegan:Connect(OnDragStart)
+
+    -- 全局移动事件
+    RegisterConnection(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            UpdateValueFromInput(input.Position)
+        end
+    end))
+
+    -- 拖动结束
+    RegisterConnection(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then
+                dragging = false
+                -- 恢复 Handle 缩放
+                Library:Tween(handleScale, 0.1, { Scale = 1 })
             end
+        end
+    end))
+
+    -- Hover 进入
+    RegisterConnection(handle.MouseEnter:Connect(function()
+        currentYOffset = -1
+        Library:Tween(handle, 0.12, {
+            Position = UDim2.new(0, handle.Position.X.Offset, 0.5, currentYOffset)
+        })
+        Library:Tween(handle, 0.12, { BackgroundColor3 = handleBgHover })
+        if handleStroke then
+            Library:Tween(handleStroke, 0.12, { Color = handleBorderHover })
+        end
+    end))
+
+    -- Hover 离开
+    RegisterConnection(handle.MouseLeave:Connect(function()
+        currentYOffset = 0
+        Library:Tween(handle, 0.12, {
+            Position = UDim2.new(0, handle.Position.X.Offset, 0.5, currentYOffset)
+        })
+        Library:Tween(handle, 0.12, { BackgroundColor3 = handleBg })
+        if handleStroke then
+            Library:Tween(handleStroke, 0.12, { Color = handleBorder })
+        end
+    end))
+
+    -- 初始位置设定
+    local initPercent = (default - min) / (max - min)
+    fill.Size = UDim2.new(initPercent, 0, 1, 0)
+    valLabel.Text = tostring(default)
+    local trackWidth = track.AbsoluteSize.X
+    if trackWidth > 0 then
+        local initX = initPercent * trackWidth
+        handle.Position = UDim2.new(0, initX, 0.5, 0)
+    end
+
+    -- 窗口大小变化时重新定位 Handle
+    RegisterConnection(SldFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+        if not dragging then
+            local val = Library.Flags[flag] or default
+            local percent = (val - min) / (max - min)
+            local trackWidth = track.AbsoluteSize.X
+            if trackWidth > 0 then
+                local x = percent * trackWidth
+                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+            end
+        end
+    end))
+
+    -- 注册搜索
+    table.insert(Library.SearchRegistry, { Name = name, Description = "", Frame = SldFrame, Tab = TabObj })
+
+    -- 返回 SetValue 接口
+    return {
+        SetValue = function(val)
+            val = math.clamp(val, min, max)
+            targetValue = val
+            local percent = (val - min) / (max - min)
+            fill.Size = UDim2.new(percent, 0, 1, 0)
+            valLabel.Text = tostring(val)
+            Library.Flags[flag] = val
+            callback(val)
+            -- 更新 Handle 位置
+            local trackWidth = track.AbsoluteSize.X
+            if trackWidth > 0 then
+                local x = percent * trackWidth
+                handle.Position = UDim2.new(0, x, 0.5, currentYOffset)
+            end
+        end
+    }
+end
 
             -- 4. DROPDOWN
             function SectionObj:CreateDropdown(drpOpt)
