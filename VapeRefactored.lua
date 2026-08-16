@@ -229,13 +229,15 @@ end
 ------------------------------------------------------------------------
 -- Library: Window
 ------------------------------------------------------------------------
-local WINDOW_W = 700
-local WINDOW_H = 520
 
-function lib:Window(text, preset, closebind, bgImageUrl)
+function lib:Window(text, preset, closebind, bgImageUrl, winWidth, winHeight)
     CloseBind   = closebind or CloseBind
     PresetColor = preset or Theme.Accent
     Theme.Accent = PresetColor
+    
+    local WINDOW_W = winWidth or 700   -- 如果没传就用默认700
+    local WINDOW_H = winHeight or 520  -- 如果没传就用默认520
+    -- ... 其余代码不变
 
     local firstTab = true
 
