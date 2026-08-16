@@ -1,7 +1,8 @@
 --[[
-    Vape UI Library - 2026 Refactored v3.0 (Bug-Free)
-    All features: Button, Toggle, Slider, Dropdown, Colorpicker, Label, Textbox, Bind, Section
-    UI enlarged, scroll fixed, Toggle debounced, Tab visibility improved, Glass BG
+    Vape UI Library - 2026 Refactored v2
+    Inspired by Vape Lite design principles.
+    Dark / Compact / Precise / Minimal / Technical / Premium / Lightweight / Sharp / Mature
+    + Glass-morphism background + Mobile-friendly scrolling
 ]]
 
 ------------------------------------------------------------------------
@@ -14,7 +15,7 @@ local LocalPlayer        = game:GetService("Players").LocalPlayer
 local CoreGui            = game:GetService("CoreGui")
 
 ------------------------------------------------------------------------
--- Theme System
+-- Theme System  (change colors here, nowhere else)
 ------------------------------------------------------------------------
 local Theme = {
     Background       = Color3.fromRGB(13, 13, 15),
@@ -22,14 +23,14 @@ local Theme = {
     Secondary        = Color3.fromRGB(24, 24, 28),
     Hover            = Color3.fromRGB(30, 30, 35),
     Active           = Color3.fromRGB(36, 36, 42),
-    Accent           = Color3.fromRGB(22, 131, 255),
+    Accent           = Color3.fromRGB(22, 131, 255),   -- #1683FF
 
     TextPrimary      = Color3.fromRGB(232, 232, 236),
-    TextSecondary    = Color3.fromRGB(180, 180, 190),
+    TextSecondary    = Color3.fromRGB(140, 140, 148),
     TextDisabled     = Color3.fromRGB(70, 70, 78),
 
-    Border           = Color3.fromRGB(60, 60, 72),
-    BorderFocus      = Color3.fromRGB(90, 90, 110),
+    Border           = Color3.fromRGB(55, 55, 65),      -- brighter border for glass
+    BorderFocus      = Color3.fromRGB(80, 80, 100),
 
     ToggleOff        = Color3.fromRGB(42, 42, 48),
     ToggleOn         = Color3.fromRGB(22, 131, 255),
@@ -70,13 +71,14 @@ local PresetColor = Theme.Accent
 local CloseBind   = Enum.KeyCode.RightControl
 
 ------------------------------------------------------------------------
--- ScreenGui
+-- ScreenGui Root
 ------------------------------------------------------------------------
 local ui = Instance.new("ScreenGui")
 ui.Name = "VapeUI_2026"
 ui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ui.ResetOnSpawn = false
 
+-- Try CoreGui first (executor context), fall back to PlayerGui
 local ok = pcall(function()
     ui.Parent = CoreGui
 end)
@@ -85,7 +87,7 @@ if not ok then
 end
 
 ------------------------------------------------------------------------
--- Responsive Scale (super-sized)
+-- Responsive Scale (UIScale)
 ------------------------------------------------------------------------
 local function GetViewport()
     local cam = workspace.CurrentCamera
@@ -100,8 +102,8 @@ uiScale.Parent = ui
 
 local function UpdateScale()
     local vp = GetViewport()
-    local baseWidth = 700   -- 更小 = 更大
-    local s = math.clamp(vp.Y / baseWidth, 0.6, 1.4)
+    local baseWidth = 900   -- reduced from 1080 to make UI larger
+    local s = math.clamp(vp.Y / baseWidth, 0.6, 1.25)
     uiScale.Scale = s
 end
 
@@ -109,7 +111,7 @@ UpdateScale()
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateScale)
 
 ------------------------------------------------------------------------
--- Rainbow cycle
+-- Rainbow cycle (single connection, no while-wait)
 ------------------------------------------------------------------------
 local rainbowConn
 rainbowConn = RunService.Heartbeat:Connect(function(dt)
@@ -124,7 +126,7 @@ rainbowConn = RunService.Heartbeat:Connect(function(dt)
 end)
 
 ------------------------------------------------------------------------
--- Utilities
+-- Utility: Tween shorthand
 ------------------------------------------------------------------------
 local function tween(obj, info, props, cb)
     local t = TweenService:Create(obj, info, props)
@@ -135,6 +137,9 @@ local function tween(obj, info, props, cb)
     return t
 end
 
+------------------------------------------------------------------------
+-- Utility: Apply border (UIStroke) with optional thickness
+------------------------------------------------------------------------
 local function makeBorder(parent, color, thickness)
     local stroke = Instance.new("UIStroke")
     stroke.Color = color or Theme.Border
@@ -144,6 +149,9 @@ local function makeBorder(parent, color, thickness)
     return stroke
 end
 
+------------------------------------------------------------------------
+-- Utility: Corner helper
+------------------------------------------------------------------------
 local function makeCorner(parent, radius)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, radius or 2)
@@ -151,6 +159,9 @@ local function makeCorner(parent, radius)
     return c
 end
 
+------------------------------------------------------------------------
+-- Utility: Draggable (Mouse + Touch)
+------------------------------------------------------------------------
 local function MakeDraggable(topbarobject, object)
     local Dragging, DragInput, DragStart, StartPosition = nil, nil, nil, nil
 
@@ -190,6 +201,9 @@ local function MakeDraggable(topbarobject, object)
     end)
 end
 
+------------------------------------------------------------------------
+-- Utility: Hover effect helper
+------------------------------------------------------------------------
 local function addHover(btn, normalColor, hoverColor)
     btn.MouseEnter:Connect(function()
         tween(btn, Anim.Hover, {BackgroundColor3 = hoverColor or Theme.Hover})
@@ -199,6 +213,9 @@ local function addHover(btn, normalColor, hoverColor)
     end)
 end
 
+------------------------------------------------------------------------
+-- Utility: Auto canvas size via Layout change
+------------------------------------------------------------------------
 local function autoCanvas(scrollFrame, layout)
     local function update()
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
@@ -209,10 +226,10 @@ local function autoCanvas(scrollFrame, layout)
 end
 
 ------------------------------------------------------------------------
--- Window (larger dimensions)
+-- Library: Window
 ------------------------------------------------------------------------
-local WINDOW_W = 720
-local WINDOW_H = 500
+local WINDOW_W = 680
+local WINDOW_H = 460
 
 function lib:Window(text, preset, closebind)
     CloseBind   = closebind or CloseBind
@@ -221,21 +238,25 @@ function lib:Window(text, preset, closebind)
 
     local firstTab = true
 
+    ------------------------------------------------------------------
+    -- Main Frame (Glass-morphism background)
+    ------------------------------------------------------------------
     local Main = Instance.new("Frame")
     Main.Name = "Main"
     Main.Parent = ui
     Main.AnchorPoint = Vector2.new(0.5, 0.5)
     Main.BackgroundColor3 = Theme.Background
-    Main.BackgroundTransparency = 0.35
+    Main.BackgroundTransparency = 0.35   -- glass effect
     Main.BorderSizePixel = 0
     Main.Position = UDim2.new(0.5, 0, 0.5, 0)
     Main.Size = UDim2.new(0, 0, 0, 0)
     Main.ClipsDescendants = true
     Main.Visible = true
 
-    makeBorder(Main, Theme.Border, 1.5)
-    makeCorner(Main, 6)
+    makeBorder(Main, Theme.Border, 1.5)   -- thicker border for glass
+    makeCorner(Main, 6)                   -- rounder corners
 
+    -- Subtle shadow behind window
     local MainShadow = Instance.new("ImageLabel")
     MainShadow.Name = "Shadow"
     MainShadow.Parent = Main
@@ -249,12 +270,18 @@ function lib:Window(text, preset, closebind)
     MainShadow.SliceCenter = Rect.new(24, 24, 276, 276)
     MainShadow.Image = "rbxassetid://6014261993"
 
+    ------------------------------------------------------------------
+    -- DragFrame (invisible top bar for dragging)
+    ------------------------------------------------------------------
     local DragFrame = Instance.new("Frame")
     DragFrame.Name = "DragFrame"
     DragFrame.Parent = Main
     DragFrame.BackgroundTransparency = 1
     DragFrame.Size = UDim2.new(1, 0, 0, 36)
 
+    ------------------------------------------------------------------
+    -- Title
+    ------------------------------------------------------------------
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
     Title.Parent = Main
@@ -267,6 +294,9 @@ function lib:Window(text, preset, closebind)
     Title.TextSize = 13
     Title.TextXAlignment = Enum.TextXAlignment.Left
 
+    ------------------------------------------------------------------
+    -- Sidebar (TabHold)
+    ------------------------------------------------------------------
     local TabHold = Instance.new("Frame")
     TabHold.Name = "TabHold"
     TabHold.Parent = Main
@@ -279,6 +309,7 @@ function lib:Window(text, preset, closebind)
     TabHoldLayout.SortOrder = Enum.SortOrder.LayoutOrder
     TabHoldLayout.Padding = UDim.new(0, 2)
 
+    -- Sidebar separator line
     local SidebarLine = Instance.new("Frame")
     SidebarLine.Name = "SidebarLine"
     SidebarLine.Parent = Main
@@ -287,13 +318,23 @@ function lib:Window(text, preset, closebind)
     SidebarLine.Position = UDim2.new(0, 142, 0, 38)
     SidebarLine.Size = UDim2.new(0, 1, 1, -44)
 
+    ------------------------------------------------------------------
+    -- Tab Folder
+    ------------------------------------------------------------------
     local TabFolder = Instance.new("Folder")
     TabFolder.Name = "TabFolder"
     TabFolder.Parent = Main
 
+    ------------------------------------------------------------------
+    -- Open animation
+    ------------------------------------------------------------------
     tween(Main, Anim.Window, {Size = UDim2.new(0, WINDOW_W, 0, WINDOW_H)})
+
     MakeDraggable(DragFrame, Main)
 
+    ------------------------------------------------------------------
+    -- Toggle UI visibility (CloseBind)
+    ------------------------------------------------------------------
     local uitoggled = false
     UserInputService.InputBegan:Connect(function(io, processed)
         if processed then return end
@@ -311,11 +352,17 @@ function lib:Window(text, preset, closebind)
         end
     end)
 
+    ------------------------------------------------------------------
+    -- lib:ChangePresetColor
+    ------------------------------------------------------------------
     function lib:ChangePresetColor(c)
         PresetColor = c
         Theme.Accent = c
     end
 
+    ------------------------------------------------------------------
+    -- lib:Notification
+    ------------------------------------------------------------------
     function lib:Notification(texttitle, textdesc, textbtn)
         local NotificationHold = Instance.new("TextButton")
         NotificationHold.Name = "NotificationHold"
@@ -330,6 +377,7 @@ function lib:Window(text, preset, closebind)
         NotificationHold.ZIndex = 50
 
         tween(NotificationHold, Anim.Medium, {BackgroundTransparency = 0.75})
+
         task.wait(0.08)
 
         local NF = Instance.new("Frame")
@@ -345,8 +393,10 @@ function lib:Window(text, preset, closebind)
 
         makeBorder(NF, Theme.Border, 1)
         makeCorner(NF, 3)
+
         tween(NF, Anim.Slow, {Size = UDim2.new(0, 180, 0, 180)})
 
+        -- Title
         local NT = Instance.new("TextLabel")
         NT.Name = "NotificationTitle"
         NT.Parent = NF
@@ -360,6 +410,7 @@ function lib:Window(text, preset, closebind)
         NT.TextXAlignment = Enum.TextXAlignment.Left
         NT.ZIndex = 52
 
+        -- Description
         local ND = Instance.new("TextLabel")
         ND.Name = "NotificationDesc"
         ND.Parent = NF
@@ -375,6 +426,7 @@ function lib:Window(text, preset, closebind)
         ND.TextYAlignment = Enum.TextYAlignment.Top
         ND.ZIndex = 52
 
+        -- OK Button
         local OK = Instance.new("TextButton")
         OK.Name = "OkayBtn"
         OK.Parent = NF
@@ -410,15 +462,20 @@ function lib:Window(text, preset, closebind)
         end)
     end
 
+    ------------------------------------------------------------------
+    -- tabhold:Tab(text)
+    ------------------------------------------------------------------
     local tabhold = {}
 
     function tabhold:Tab(text)
-        -- Tab Button with improved visibility
+        ------------------------------------------------------------------
+        -- Tab Button (sidebar)
+        ------------------------------------------------------------------
         local TabBtn = Instance.new("TextButton")
         TabBtn.Name = "TabBtn"
         TabBtn.Parent = TabHold
-        TabBtn.BackgroundColor3 = Theme.Secondary
-        TabBtn.BackgroundTransparency = 0.4
+        TabBtn.BackgroundColor3 = Theme.Panel
+        TabBtn.BackgroundTransparency = 1
         TabBtn.Size = UDim2.new(1, 0, 0, 32)
         TabBtn.AutoButtonColor = false
         TabBtn.Font = Enum.Font.SourceSans
@@ -438,6 +495,7 @@ function lib:Window(text, preset, closebind)
         TabTitle.TextSize = 13
         TabTitle.TextXAlignment = Enum.TextXAlignment.Left
 
+        -- Active indicator (left bar)
         local TabIndicator = Instance.new("Frame")
         TabIndicator.Name = "TabIndicator"
         TabIndicator.Parent = TabBtn
@@ -445,9 +503,12 @@ function lib:Window(text, preset, closebind)
         TabIndicator.BorderSizePixel = 0
         TabIndicator.Position = UDim2.new(0, 0, 0.25, 0)
         TabIndicator.Size = UDim2.new(0, 3, 0, 0)
+
         makeCorner(TabIndicator, 1)
 
-        -- Tab Content
+        ------------------------------------------------------------------
+        -- Tab Content (ScrollingFrame on the right)
+        ------------------------------------------------------------------
         local Tab = Instance.new("ScrollingFrame")
         Tab.Name = "Tab"
         Tab.Parent = TabFolder
@@ -457,12 +518,10 @@ function lib:Window(text, preset, closebind)
         Tab.Position = UDim2.new(0, 150, 0, 38)
         Tab.Size = UDim2.new(1, -160, 1, -46)
         Tab.CanvasSize = UDim2.new(0, 0, 0, 0)
-        Tab.ScrollBarThickness = 8
-        Tab.ScrollBarImageColor3 = Theme.TextSecondary
-        Tab.ScrollBarImageTransparency = 0.4
+        Tab.ScrollBarThickness = 6          -- thicker for mobile
+        Tab.ScrollBarImageColor3 = Theme.Border
+        Tab.ScrollBarImageTransparency = 0.5
         Tab.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
-        Tab.TouchScrollEnabled = true
-        Tab.ScrollingDirection = Enum.ScrollingDirection.Vertical
         Tab.Visible = false
 
         local TabLayout = Instance.new("UIListLayout")
@@ -479,7 +538,9 @@ function lib:Window(text, preset, closebind)
 
         local updateCanvas = autoCanvas(Tab, TabLayout)
 
-        -- First tab activation
+        ------------------------------------------------------------------
+        -- First tab is active by default
+        ------------------------------------------------------------------
         if firstTab then
             firstTab = false
             TabIndicator.Size = UDim2.new(0, 3, 0.5, 0)
@@ -489,28 +550,24 @@ function lib:Window(text, preset, closebind)
             Tab.Visible = true
         end
 
+        ------------------------------------------------------------------
+        -- Tab click handler
+        ------------------------------------------------------------------
         local function activateTab()
-            -- Deactivate all tabs
-            for _, child in ipairs(TabHold:GetChildren()) do
-                if child:IsA("TextButton") and child.Name == "TabBtn" then
-                    local indicator = child:FindFirstChild("TabIndicator")
-                    local title = child:FindFirstChild("TabTitle")
-                    if indicator then
-                        tween(indicator, Anim.Fast, {Size = UDim2.new(0, 3, 0, 0)})
-                    end
-                    if title then
-                        tween(title, Anim.Fast, {TextColor3 = Theme.TextSecondary})
-                    end
-                    tween(child, Anim.Fast, {BackgroundTransparency = 0.4, BackgroundColor3 = Theme.Secondary})
+            -- Deactivate all
+            for _, v in ipairs(TabHold:GetChildren()) do
+                if v.Name == "TabBtn" then
+                    tween(v.TabIndicator, Anim.Fast, {Size = UDim2.new(0, 3, 0, 0)})
+                    tween(v.TabTitle, Anim.Fast, {TextColor3 = Theme.TextSecondary})
+                    tween(v, Anim.Fast, {BackgroundTransparency = 1})
                 end
             end
-            -- Hide all tabs
-            for _, child in ipairs(TabFolder:GetChildren()) do
-                if child:IsA("ScrollingFrame") and child.Name == "Tab" then
-                    child.Visible = false
+            for _, v in ipairs(TabFolder:GetChildren()) do
+                if v.Name == "Tab" then
+                    v.Visible = false
                 end
             end
-            -- Activate current
+            -- Activate this
             tween(TabIndicator, Anim.Fast, {Size = UDim2.new(0, 3, 0.5, 0)})
             tween(TabTitle, Anim.Fast, {TextColor3 = Theme.TextPrimary})
             tween(TabBtn, Anim.Fast, {BackgroundTransparency = 0, BackgroundColor3 = Theme.Panel})
@@ -518,28 +575,40 @@ function lib:Window(text, preset, closebind)
         end
 
         TabBtn.MouseButton1Click:Connect(activateTab)
+
+        -- Touch support for tab
         TabBtn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch then
                 activateTab()
             end
         end)
 
+        ------------------------------------------------------------------
         -- tabcontent API
+        ------------------------------------------------------------------
         local ROW_W = UDim.new(1, -4)
         local ROW_H = 38
 
         local tabcontent = {}
 
+        ------------------------------------------------------------------
+        -- Helper: Module Row background
+        ------------------------------------------------------------------
         local function makeRow(height)
             local Row = Instance.new("Frame")
             Row.BackgroundColor3 = Theme.Panel
             Row.BorderSizePixel = 0
             Row.Size = UDim2.new(ROW_W.Scale, ROW_W.Offset, 0, height or ROW_H)
+
             makeBorder(Row, Theme.Border, 1)
             makeCorner(Row, 2)
+
             return Row
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Button
+        ------------------------------------------------------------------
         function tabcontent:Button(text, callback)
             local Button = Instance.new("TextButton")
             Button.Name = "Button"
@@ -567,13 +636,16 @@ function lib:Window(text, preset, closebind)
 
             addHover(Button, Theme.Panel, Theme.Hover)
 
+            -- Press feedback
             Button.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     tween(Button, Anim.Press, {BackgroundColor3 = Theme.Active})
                 end
             end)
             Button.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     tween(Button, Anim.Press, {BackgroundColor3 = Theme.Panel})
                 end
             end)
@@ -583,6 +655,9 @@ function lib:Window(text, preset, closebind)
             end)
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Toggle (fixed with debounce)
+        ------------------------------------------------------------------
         function tabcontent:Toggle(text, default, callback)
             local state = {
                 toggled = false,
@@ -613,6 +688,7 @@ function lib:Window(text, preset, closebind)
             ToggleTitle.TextSize = 13
             ToggleTitle.TextXAlignment = Enum.TextXAlignment.Left
 
+            -- Toggle track (outer)
             local Track = Instance.new("Frame")
             Track.Name = "Track"
             Track.Parent = Toggle
@@ -621,8 +697,10 @@ function lib:Window(text, preset, closebind)
             Track.AnchorPoint = Vector2.new(1, 0.5)
             Track.Position = UDim2.new(1, -10, 0.5, 0)
             Track.Size = UDim2.new(0, 34, 0, 18)
+
             makeCorner(Track, 9)
 
+            -- Toggle fill (accent overlay, hidden when off)
             local Fill = Instance.new("Frame")
             Fill.Name = "Fill"
             Fill.Parent = Track
@@ -630,8 +708,10 @@ function lib:Window(text, preset, closebind)
             Fill.BackgroundTransparency = 1
             Fill.BorderSizePixel = 0
             Fill.Size = UDim2.new(1, 0, 1, 0)
+
             makeCorner(Fill, 9)
 
+            -- Toggle circle (thumb)
             local Circle = Instance.new("Frame")
             Circle.Name = "Circle"
             Circle.Parent = Track
@@ -639,8 +719,10 @@ function lib:Window(text, preset, closebind)
             Circle.BorderSizePixel = 0
             Circle.Position = UDim2.new(0, 3, 0.5, -6)
             Circle.Size = UDim2.new(0, 12, 0, 12)
+
             makeCorner(Circle, 6)
 
+            -- Accent sync for fill
             local accentSync
             accentSync = RunService.Heartbeat:Connect(function()
                 Fill.BackgroundColor3 = Theme.Accent
@@ -664,6 +746,7 @@ function lib:Window(text, preset, closebind)
                         BackgroundColor3 = Theme.ToggleCircleOff
                     })
                 end
+                -- Wait for animation to finish before releasing lock
                 task.wait(0.16)
                 state.animating = false
                 pcall(callback, state.toggled)
@@ -675,6 +758,7 @@ function lib:Window(text, preset, closebind)
                 setToggle(not state.toggled, true)
             end)
 
+            -- Touch
             Toggle.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.Touch then
                     setToggle(not state.toggled, true)
@@ -685,6 +769,7 @@ function lib:Window(text, preset, closebind)
                 setToggle(true, false)
             end
 
+            -- Return handle so caller can set externally
             local handle = {}
             function handle:Set(stateVal)
                 setToggle(stateVal, true)
@@ -695,6 +780,9 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Slider
+        ------------------------------------------------------------------
         function tabcontent:Slider(text, min, max, start, callback)
             local dragging = false
             local startVal = start or min
@@ -732,6 +820,7 @@ function lib:Window(text, preset, closebind)
             SliderValue.TextSize = 12
             SliderValue.TextXAlignment = Enum.TextXAlignment.Right
 
+            -- Track
             local SlideFrame = Instance.new("Frame")
             SlideFrame.Name = "SlideFrame"
             SlideFrame.Parent = Slider
@@ -739,8 +828,10 @@ function lib:Window(text, preset, closebind)
             SlideFrame.BorderSizePixel = 0
             SlideFrame.Position = UDim2.new(0, 13, 0, 38)
             SlideFrame.Size = UDim2.new(1, -26, 0, 4)
+
             makeCorner(SlideFrame, 2)
 
+            -- Fill
             local CurrentValueFrame = Instance.new("Frame")
             CurrentValueFrame.Name = "CurrentValueFrame"
             CurrentValueFrame.Parent = SlideFrame
@@ -748,8 +839,10 @@ function lib:Window(text, preset, closebind)
             CurrentValueFrame.BorderSizePixel = 0
             local startScale = (startVal - min) / (max - min)
             CurrentValueFrame.Size = UDim2.new(math.clamp(startScale, 0, 1), 0, 1, 0)
+
             makeCorner(CurrentValueFrame, 2)
 
+            -- Thumb
             local SlideCircle = Instance.new("Frame")
             SlideCircle.Name = "SlideCircle"
             SlideCircle.Parent = SlideFrame
@@ -758,8 +851,10 @@ function lib:Window(text, preset, closebind)
             SlideCircle.AnchorPoint = Vector2.new(0.5, 0.5)
             SlideCircle.Position = UDim2.new(math.clamp(startScale, 0, 1), 0, 0.5, 0)
             SlideCircle.Size = UDim2.new(0, 12, 0, 12)
+
             makeCorner(SlideCircle, 6)
 
+            -- Accent sync
             local sliderAccent
             sliderAccent = RunService.Heartbeat:Connect(function()
                 CurrentValueFrame.BackgroundColor3 = Theme.Accent
@@ -772,29 +867,34 @@ function lib:Window(text, preset, closebind)
                 )
                 tween(CurrentValueFrame, Anim.Slider, {Size = UDim2.new(rel, 0, 1, 0)})
                 tween(SlideCircle, Anim.Slider, {Position = UDim2.new(rel, 0, 0.5, 0)})
+
                 local value = math.floor(rel * (max - min) + min)
                 SliderValue.Text = tostring(value)
                 pcall(callback, value)
             end
 
+            -- Drag start (Mouse + Touch)
             local function onDragStart(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     dragging = true
                     move(input)
                 end
             end
 
             SlideCircle.InputBegan:Connect(onDragStart)
-            SlideFrame.InputBegan:Connect(onDragStart)
+            SlideFrame.InputBegan:Connect(onDragStart)  -- click on track
 
             SlideCircle.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     dragging = false
                 end
             end)
 
             SlideFrame.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     dragging = false
                 end
             end)
@@ -819,6 +919,9 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Dropdown
+        ------------------------------------------------------------------
         function tabcontent:Dropdown(text, list, callback)
             local droptog = false
             local framesize = 0
@@ -855,6 +958,7 @@ function lib:Window(text, preset, closebind)
             DropdownTitle.TextSize = 13
             DropdownTitle.TextXAlignment = Enum.TextXAlignment.Left
 
+            -- Arrow
             local ArrowImg = Instance.new("ImageLabel")
             ArrowImg.Name = "ArrowImg"
             ArrowImg.Parent = Dropdown
@@ -865,6 +969,7 @@ function lib:Window(text, preset, closebind)
             ArrowImg.Image = "http://www.roblox.com/asset/?id=6034818375"
             ArrowImg.ImageColor3 = Theme.TextSecondary
 
+            -- Item Holder
             local DropItemHolder = Instance.new("ScrollingFrame")
             DropItemHolder.Name = "DropItemHolder"
             DropItemHolder.Parent = Dropdown
@@ -874,17 +979,15 @@ function lib:Window(text, preset, closebind)
             DropItemHolder.Position = UDim2.new(0, 6, 0, ROW_H + 2)
             DropItemHolder.Size = UDim2.new(1, -12, 0, 0)
             DropItemHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-            DropItemHolder.ScrollBarThickness = 8
-            DropItemHolder.ScrollBarImageColor3 = Theme.TextSecondary
-            DropItemHolder.ScrollBarImageTransparency = 0.4
-            DropItemHolder.TouchScrollEnabled = true
-            DropItemHolder.ScrollingDirection = Enum.ScrollingDirection.Vertical
+            DropItemHolder.ScrollBarThickness = 6
+            DropItemHolder.ScrollBarImageColor3 = Theme.Border
 
             local DropLayout = Instance.new("UIListLayout")
             DropLayout.Parent = DropItemHolder
             DropLayout.SortOrder = Enum.SortOrder.LayoutOrder
             DropLayout.Padding = UDim.new(0, 2)
 
+            -- Populate items
             for i, v in ipairs(list) do
                 itemcount = itemcount + 1
                 if itemcount <= 4 then
@@ -905,6 +1008,7 @@ function lib:Window(text, preset, closebind)
                 Item.TextXAlignment = Enum.TextXAlignment.Left
 
                 makeCorner(Item, 2)
+
                 addHover(Item, Theme.Secondary, Theme.Hover)
 
                 Item.MouseButton1Click:Connect(function()
@@ -939,10 +1043,17 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
-        -- ===================== COLORPICKER (FULL) =====================
+        ------------------------------------------------------------------
+        -- tabcontent:Colorpicker
+        ------------------------------------------------------------------
         function tabcontent:Colorpicker(text, preset, callback)
             local ColorPickerToggled = false
+            local OldToggleColor = preset or Color3.fromRGB(255, 0, 4)
+            local OldColor = preset or Color3.fromRGB(255, 0, 4)
+            local OldColorSelectionPosition = nil
+            local OldHueSelectionPosition = nil
             local ColorH, ColorS, ColorV = 1, 1, 1
+            local RainbowColorPicker = false
             local ColorInput = nil
             local HueInput = nil
             local Mouse = LocalPlayer:GetMouse()
@@ -969,6 +1080,7 @@ function lib:Window(text, preset, closebind)
             ColorpickerTitle.TextSize = 13
             ColorpickerTitle.TextXAlignment = Enum.TextXAlignment.Left
 
+            -- Color preview box
             local BoxColor = Instance.new("Frame")
             BoxColor.Name = "BoxColor"
             BoxColor.Parent = Colorpicker
@@ -980,6 +1092,7 @@ function lib:Window(text, preset, closebind)
             makeCorner(BoxColor, 2)
             makeBorder(BoxColor, Theme.Border, 1)
 
+            -- Colorpicker button (opens expanded view)
             local ColorpickerBtn = Instance.new("TextButton")
             ColorpickerBtn.Name = "ColorpickerBtn"
             ColorpickerBtn.Parent = Colorpicker
@@ -988,9 +1101,11 @@ function lib:Window(text, preset, closebind)
             ColorpickerBtn.Font = Enum.Font.SourceSans
             ColorpickerBtn.Text = ""
 
+            -- Expanded color panel
             local COLOR_H = 110
             local EXPANDED_H = ROW_H + COLOR_H + 8
 
+            -- SV Picker
             local Color = Instance.new("ImageLabel")
             Color.Name = "Color"
             Color.Parent = Colorpicker
@@ -1019,6 +1134,7 @@ function lib:Window(text, preset, closebind)
             ColorSelection.Visible = false
             ColorSelection.ZIndex = 11
 
+            -- Hue bar
             local Hue = Instance.new("ImageLabel")
             Hue.Name = "Hue"
             Hue.Parent = Colorpicker
@@ -1059,6 +1175,7 @@ function lib:Window(text, preset, closebind)
                 pcall(callback, BoxColor.BackgroundColor3)
             end
 
+            -- Init
             ColorH = 1 - (math.clamp(
                 HueSelection.AbsolutePosition.Y - Hue.AbsolutePosition.Y,
                 0, Hue.AbsoluteSize.Y
@@ -1083,8 +1200,11 @@ function lib:Window(text, preset, closebind)
                 ColorPickerToggled = not ColorPickerToggled
             end)
 
+            -- SV drag (Mouse + Touch)
             Color.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                    if RainbowColorPicker then return end
                     if ColorInput then ColorInput:Disconnect() end
                     ColorInput = RunService.RenderStepped:Connect(function()
                         local cx = math.clamp(Mouse.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X
@@ -1097,13 +1217,17 @@ function lib:Window(text, preset, closebind)
                 end
             end)
             Color.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     if ColorInput then ColorInput:Disconnect() end
                 end
             end)
 
+            -- Hue drag (Mouse + Touch)
             Hue.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                    if RainbowColorPicker then return end
                     if HueInput then HueInput:Disconnect() end
                     HueInput = RunService.RenderStepped:Connect(function()
                         local hy = math.clamp(Mouse.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y
@@ -1114,7 +1238,8 @@ function lib:Window(text, preset, closebind)
                 end
             end)
             Hue.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
                     if HueInput then HueInput:Disconnect() end
                 end
             end)
@@ -1126,6 +1251,9 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Label
+        ------------------------------------------------------------------
         function tabcontent:Label(text)
             local Label = Instance.new("Frame")
             Label.Name = "Label"
@@ -1155,6 +1283,9 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Textbox
+        ------------------------------------------------------------------
         function tabcontent:Textbox(text, disapper, callback)
             local Textbox = Instance.new("Frame")
             Textbox.Name = "Textbox"
@@ -1184,7 +1315,8 @@ function lib:Window(text, preset, closebind)
             TextboxFrame.BackgroundColor3 = Theme.Secondary
             TextboxFrame.AnchorPoint = Vector2.new(1, 0.5)
             TextboxFrame.Position = UDim2.new(1, -8, 0.5, 0)
-            TextboxFrame.Size = UDim2.new(0, 160, 0, 28)
+            TextboxFrame.Size = UDim2.new(0, 140, 0, 26)  -- slightly wider
+
             makeCorner(TextboxFrame, 2)
 
             local TextBox = Instance.new("TextBox")
@@ -1200,6 +1332,7 @@ function lib:Window(text, preset, closebind)
             TextBox.TextSize = 12
             TextBox.ClearTextOnFocus = false
 
+            -- Focus border highlight
             TextBox.Focused:Connect(function()
                 local stroke = TextboxFrame:FindFirstChildOfClass("UIStroke")
                 if stroke then
@@ -1229,6 +1362,9 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Bind
+        ------------------------------------------------------------------
         function tabcontent:Bind(text, keypreset, callback)
             local binding = false
             local Key = keypreset and keypreset.Name or "None"
@@ -1257,6 +1393,7 @@ function lib:Window(text, preset, closebind)
             BindTitle.TextSize = 13
             BindTitle.TextXAlignment = Enum.TextXAlignment.Left
 
+            -- Key display
             local BindKeyBg = Instance.new("Frame")
             BindKeyBg.Name = "BindKeyBg"
             BindKeyBg.Parent = Bind
@@ -1264,6 +1401,7 @@ function lib:Window(text, preset, closebind)
             BindKeyBg.AnchorPoint = Vector2.new(1, 0.5)
             BindKeyBg.Position = UDim2.new(1, -8, 0.5, 0)
             BindKeyBg.Size = UDim2.new(0, 60, 0, 24)
+
             makeCorner(BindKeyBg, 2)
 
             local BindText = Instance.new("TextLabel")
@@ -1308,6 +1446,9 @@ function lib:Window(text, preset, closebind)
             return handle
         end
 
+        ------------------------------------------------------------------
+        -- tabcontent:Section (bonus: visual separator)
+        ------------------------------------------------------------------
         function tabcontent:Section(text)
             local Section = Instance.new("Frame")
             Section.Name = "Section"
@@ -1333,6 +1474,9 @@ function lib:Window(text, preset, closebind)
     return tabhold
 end
 
+------------------------------------------------------------------------
+-- lib:Destroy (cleanup)
+------------------------------------------------------------------------
 function lib:Destroy()
     if rainbowConn then
         rainbowConn:Disconnect()
@@ -1343,4 +1487,5 @@ function lib:Destroy()
     end
 end
 
+------------------------------------------------------------------------
 return lib
