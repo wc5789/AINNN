@@ -3,6 +3,7 @@
     Inspired by Vape Lite design principles.
     Dark / Compact / Precise / Minimal / Technical / Premium / Lightweight / Sharp / Mature
     + Glass-morphism background + Mobile-friendly scrolling
+    + Custom background image via URL (GitHub, etc.)
 ]]
 
 ------------------------------------------------------------------------
@@ -231,7 +232,7 @@ end
 local WINDOW_W = 700
 local WINDOW_H = 520
 
-function lib:Window(text, preset, closebind)
+function lib:Window(text, preset, closebind, bgImageUrl)
     CloseBind   = closebind or CloseBind
     PresetColor = preset or Theme.Accent
     Theme.Accent = PresetColor
@@ -239,14 +240,14 @@ function lib:Window(text, preset, closebind)
     local firstTab = true
 
     ------------------------------------------------------------------
-    -- Main Frame (Glass-morphism background)
+    -- Main Frame (Glass-morphism background with custom image support)
     ------------------------------------------------------------------
     local Main = Instance.new("Frame")
     Main.Name = "Main"
     Main.Parent = ui
     Main.AnchorPoint = Vector2.new(0.5, 0.5)
     Main.BackgroundColor3 = Theme.Background
-    Main.BackgroundTransparency = 0.35   -- glass effect
+    Main.BackgroundTransparency = 1   -- fully transparent to show background image
     Main.BorderSizePixel = 0
     Main.Position = UDim2.new(0.5, 0, 0.5, 0)
     Main.Size = UDim2.new(0, 0, 0, 0)
@@ -269,6 +270,33 @@ function lib:Window(text, preset, closebind)
     MainShadow.ScaleType = Enum.ScaleType.Slice
     MainShadow.SliceCenter = Rect.new(24, 24, 276, 276)
     MainShadow.Image = "rbxassetid://6014261993"
+
+    ------------------------------------------------------------------
+    -- Background Image Layer (customizable via URL)
+    ------------------------------------------------------------------
+    local bgImage = Instance.new("ImageLabel")
+    bgImage.Name = "BackgroundImage"
+    bgImage.Parent = Main
+    bgImage.BackgroundTransparency = 1
+    bgImage.Size = UDim2.new(1, 0, 1, 0)
+    bgImage.ZIndex = -3                       -- below everything
+    bgImage.ScaleType = Enum.ScaleType.Crop    -- fill the window
+    bgImage.Image = ""                        -- default empty
+
+    -- Overlay to maintain glass effect
+    local overlay = Instance.new("Frame")
+    overlay.Name = "Overlay"
+    overlay.Parent = Main
+    overlay.BackgroundColor3 = Theme.Background
+    overlay.BackgroundTransparency = 0.35
+    overlay.BorderSizePixel = 0
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.ZIndex = -2                       -- above background, below controls
+
+    -- Set initial background if provided
+    if bgImageUrl and bgImageUrl ~= "" then
+        bgImage.Image = bgImageUrl
+    end
 
     ------------------------------------------------------------------
     -- DragFrame (invisible top bar for dragging)
@@ -1471,6 +1499,17 @@ function lib:Window(text, preset, closebind)
         return tabcontent
     end
 
+    ------------------------------------------------------------------
+    -- Custom Background Methods
+    ------------------------------------------------------------------
+    function tabhold:SetBackgroundImage(url)
+        bgImage.Image = url or ""
+    end
+
+    function tabhold:GetBackgroundImage()
+        return bgImage.Image
+    end
+
     return tabhold
 end
 
@@ -1487,5 +1526,4 @@ function lib:Destroy()
     end
 end
 
-------------------------------------------------------------------------
 return lib
