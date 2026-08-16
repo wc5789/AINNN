@@ -1,21 +1,8 @@
 --[[
-    Vape UI Library - 2026 Refactored Edition
+    Vape UI Library - 2026 Refactored v2
     Inspired by Vape Lite design principles.
     Dark / Compact / Precise / Minimal / Technical / Premium / Lightweight / Sharp / Mature
-    
-    API Compatible with original:
-        lib:Window(text, preset, closebind)
-        lib:Notification(title, desc, btntext)
-        lib:ChangePresetColor(color)
-        window:Tab(text)
-        tab:Button(text, callback)
-        tab:Toggle(text, default, callback)
-        tab:Slider(text, min, max, start, callback)
-        tab:Dropdown(text, list, callback)
-        tab:Colorpicker(text, preset, callback)
-        tab:Label(text)
-        tab:Textbox(text, disappear, callback)
-        tab:Bind(text, keypreset, callback)
+    + Glass-morphism background + Mobile-friendly scrolling
 ]]
 
 ------------------------------------------------------------------------
@@ -42,8 +29,8 @@ local Theme = {
     TextSecondary    = Color3.fromRGB(140, 140, 148),
     TextDisabled     = Color3.fromRGB(70, 70, 78),
 
-    Border           = Color3.fromRGB(38, 38, 44),
-    BorderFocus      = Color3.fromRGB(55, 55, 65),
+    Border           = Color3.fromRGB(55, 55, 65),      -- brighter border for glass
+    BorderFocus      = Color3.fromRGB(80, 80, 100),
 
     ToggleOff        = Color3.fromRGB(42, 42, 48),
     ToggleOn         = Color3.fromRGB(22, 131, 255),
@@ -115,8 +102,8 @@ uiScale.Parent = ui
 
 local function UpdateScale()
     local vp = GetViewport()
-    local baseWidth = 1080
-    local s = math.clamp(vp.Y / baseWidth, 0.55, 1.15)
+    local baseWidth = 900   -- reduced from 1080 to make UI larger
+    local s = math.clamp(vp.Y / baseWidth, 0.6, 1.25)
     uiScale.Scale = s
 end
 
@@ -151,7 +138,7 @@ local function tween(obj, info, props, cb)
 end
 
 ------------------------------------------------------------------------
--- Utility: Apply border (UIStroke)
+-- Utility: Apply border (UIStroke) with optional thickness
 ------------------------------------------------------------------------
 local function makeBorder(parent, color, thickness)
     local stroke = Instance.new("UIStroke")
@@ -241,8 +228,8 @@ end
 ------------------------------------------------------------------------
 -- Library: Window
 ------------------------------------------------------------------------
-local WINDOW_W = 560
-local WINDOW_H = 319
+local WINDOW_W = 680
+local WINDOW_H = 460
 
 function lib:Window(text, preset, closebind)
     CloseBind   = closebind or CloseBind
@@ -252,21 +239,22 @@ function lib:Window(text, preset, closebind)
     local firstTab = true
 
     ------------------------------------------------------------------
-    -- Main Frame
+    -- Main Frame (Glass-morphism background)
     ------------------------------------------------------------------
     local Main = Instance.new("Frame")
     Main.Name = "Main"
     Main.Parent = ui
     Main.AnchorPoint = Vector2.new(0.5, 0.5)
     Main.BackgroundColor3 = Theme.Background
+    Main.BackgroundTransparency = 0.35   -- glass effect
     Main.BorderSizePixel = 0
     Main.Position = UDim2.new(0.5, 0, 0.5, 0)
     Main.Size = UDim2.new(0, 0, 0, 0)
     Main.ClipsDescendants = true
     Main.Visible = true
 
-    makeBorder(Main, Theme.Border, 1)
-    makeCorner(Main, 3)
+    makeBorder(Main, Theme.Border, 1.5)   -- thicker border for glass
+    makeCorner(Main, 6)                   -- rounder corners
 
     -- Subtle shadow behind window
     local MainShadow = Instance.new("ImageLabel")
@@ -274,10 +262,10 @@ function lib:Window(text, preset, closebind)
     MainShadow.Parent = Main
     MainShadow.BackgroundTransparency = 1
     MainShadow.BorderSizePixel = 0
-    MainShadow.Position = UDim2.new(0, -8, 0, -4)
-    MainShadow.Size = UDim2.new(1, 16, 1, 16)
+    MainShadow.Position = UDim2.new(0, -12, 0, -6)
+    MainShadow.Size = UDim2.new(1, 24, 1, 24)
     MainShadow.ZIndex = -1
-    MainShadow.ImageTransparency = 0.55
+    MainShadow.ImageTransparency = 0.5
     MainShadow.ScaleType = Enum.ScaleType.Slice
     MainShadow.SliceCenter = Rect.new(24, 24, 276, 276)
     MainShadow.Image = "rbxassetid://6014261993"
@@ -303,7 +291,7 @@ function lib:Window(text, preset, closebind)
     Title.Font = Enum.Font.GothamSemibold
     Title.Text = text
     Title.TextColor3 = Theme.TextPrimary
-    Title.TextSize = 12
+    Title.TextSize = 13
     Title.TextXAlignment = Enum.TextXAlignment.Left
 
     ------------------------------------------------------------------
@@ -314,7 +302,7 @@ function lib:Window(text, preset, closebind)
     TabHold.Parent = Main
     TabHold.BackgroundTransparency = 1
     TabHold.Position = UDim2.new(0, 6, 0, 38)
-    TabHold.Size = UDim2.new(0, 120, 1, -44)
+    TabHold.Size = UDim2.new(0, 130, 1, -44)
 
     local TabHoldLayout = Instance.new("UIListLayout")
     TabHoldLayout.Parent = TabHold
@@ -327,7 +315,7 @@ function lib:Window(text, preset, closebind)
     SidebarLine.Parent = Main
     SidebarLine.BackgroundColor3 = Theme.Border
     SidebarLine.BorderSizePixel = 0
-    SidebarLine.Position = UDim2.new(0, 132, 0, 38)
+    SidebarLine.Position = UDim2.new(0, 142, 0, 38)
     SidebarLine.Size = UDim2.new(0, 1, 1, -44)
 
     ------------------------------------------------------------------
@@ -488,12 +476,12 @@ function lib:Window(text, preset, closebind)
         TabBtn.Parent = TabHold
         TabBtn.BackgroundColor3 = Theme.Panel
         TabBtn.BackgroundTransparency = 1
-        TabBtn.Size = UDim2.new(1, 0, 0, 30)
+        TabBtn.Size = UDim2.new(1, 0, 0, 32)
         TabBtn.AutoButtonColor = false
         TabBtn.Font = Enum.Font.SourceSans
         TabBtn.Text = ""
 
-        makeCorner(TabBtn, 2)
+        makeCorner(TabBtn, 3)
 
         local TabTitle = Instance.new("TextLabel")
         TabTitle.Name = "TabTitle"
@@ -514,7 +502,7 @@ function lib:Window(text, preset, closebind)
         TabIndicator.BackgroundColor3 = Theme.Accent
         TabIndicator.BorderSizePixel = 0
         TabIndicator.Position = UDim2.new(0, 0, 0.25, 0)
-        TabIndicator.Size = UDim2.new(0, 2, 0, 0)
+        TabIndicator.Size = UDim2.new(0, 3, 0, 0)
 
         makeCorner(TabIndicator, 1)
 
@@ -527,11 +515,13 @@ function lib:Window(text, preset, closebind)
         Tab.Active = true
         Tab.BackgroundTransparency = 1
         Tab.BorderSizePixel = 0
-        Tab.Position = UDim2.new(0, 140, 0, 38)
-        Tab.Size = UDim2.new(1, -148, 1, -46)
+        Tab.Position = UDim2.new(0, 150, 0, 38)
+        Tab.Size = UDim2.new(1, -160, 1, -46)
         Tab.CanvasSize = UDim2.new(0, 0, 0, 0)
-        Tab.ScrollBarThickness = 2
+        Tab.ScrollBarThickness = 6          -- thicker for mobile
         Tab.ScrollBarImageColor3 = Theme.Border
+        Tab.ScrollBarImageTransparency = 0.5
+        Tab.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
         Tab.Visible = false
 
         local TabLayout = Instance.new("UIListLayout")
@@ -553,7 +543,7 @@ function lib:Window(text, preset, closebind)
         ------------------------------------------------------------------
         if firstTab then
             firstTab = false
-            TabIndicator.Size = UDim2.new(0, 2, 0.5, 0)
+            TabIndicator.Size = UDim2.new(0, 3, 0.5, 0)
             TabTitle.TextColor3 = Theme.TextPrimary
             TabBtn.BackgroundTransparency = 0
             TabBtn.BackgroundColor3 = Theme.Panel
@@ -567,7 +557,7 @@ function lib:Window(text, preset, closebind)
             -- Deactivate all
             for _, v in ipairs(TabHold:GetChildren()) do
                 if v.Name == "TabBtn" then
-                    tween(v.TabIndicator, Anim.Fast, {Size = UDim2.new(0, 2, 0, 0)})
+                    tween(v.TabIndicator, Anim.Fast, {Size = UDim2.new(0, 3, 0, 0)})
                     tween(v.TabTitle, Anim.Fast, {TextColor3 = Theme.TextSecondary})
                     tween(v, Anim.Fast, {BackgroundTransparency = 1})
                 end
@@ -578,7 +568,7 @@ function lib:Window(text, preset, closebind)
                 end
             end
             -- Activate this
-            tween(TabIndicator, Anim.Fast, {Size = UDim2.new(0, 2, 0.5, 0)})
+            tween(TabIndicator, Anim.Fast, {Size = UDim2.new(0, 3, 0.5, 0)})
             tween(TabTitle, Anim.Fast, {TextColor3 = Theme.TextPrimary})
             tween(TabBtn, Anim.Fast, {BackgroundTransparency = 0, BackgroundColor3 = Theme.Panel})
             Tab.Visible = true
@@ -666,10 +656,13 @@ function lib:Window(text, preset, closebind)
         end
 
         ------------------------------------------------------------------
-        -- tabcontent:Toggle
+        -- tabcontent:Toggle (fixed with debounce)
         ------------------------------------------------------------------
         function tabcontent:Toggle(text, default, callback)
-            local toggled = false
+            local state = {
+                toggled = false,
+                animating = false
+            }
 
             local Toggle = Instance.new("TextButton")
             Toggle.Name = "Toggle"
@@ -735,10 +728,12 @@ function lib:Window(text, preset, closebind)
                 Fill.BackgroundColor3 = Theme.Accent
             end)
 
-            local function setToggle(state, animate)
-                toggled = state
+            local function setToggle(newState, animate)
+                if state.animating then return end
+                state.animating = true
+                state.toggled = newState
                 local info = animate and Anim.Toggle or TweenInfo.new(0, Enum.EasingStyle.Quad)
-                if state then
+                if newState then
                     tween(Fill, info, {BackgroundTransparency = 0})
                     tween(Circle, info, {
                         Position = UDim2.new(1, -15, 0.5, -6),
@@ -751,20 +746,22 @@ function lib:Window(text, preset, closebind)
                         BackgroundColor3 = Theme.ToggleCircleOff
                     })
                 end
+                -- Wait for animation to finish before releasing lock
+                task.wait(0.16)
+                state.animating = false
+                pcall(callback, state.toggled)
             end
 
             addHover(Toggle, Theme.Panel, Theme.Hover)
 
             Toggle.MouseButton1Click:Connect(function()
-                setToggle(not toggled, true)
-                pcall(callback, toggled)
+                setToggle(not state.toggled, true)
             end)
 
             -- Touch
             Toggle.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.Touch then
-                    setToggle(not toggled, true)
-                    pcall(callback, toggled)
+                    setToggle(not state.toggled, true)
                 end
             end)
 
@@ -774,11 +771,11 @@ function lib:Window(text, preset, closebind)
 
             -- Return handle so caller can set externally
             local handle = {}
-            function handle:Set(state)
-                setToggle(state, true)
+            function handle:Set(stateVal)
+                setToggle(stateVal, true)
             end
             function handle:Get()
-                return toggled
+                return state.toggled
             end
             return handle
         end
@@ -853,9 +850,9 @@ function lib:Window(text, preset, closebind)
             SlideCircle.BorderSizePixel = 0
             SlideCircle.AnchorPoint = Vector2.new(0.5, 0.5)
             SlideCircle.Position = UDim2.new(math.clamp(startScale, 0, 1), 0, 0.5, 0)
-            SlideCircle.Size = UDim2.new(0, 10, 0, 10)
+            SlideCircle.Size = UDim2.new(0, 12, 0, 12)
 
-            makeCorner(SlideCircle, 5)
+            makeCorner(SlideCircle, 6)
 
             -- Accent sync
             local sliderAccent
@@ -982,7 +979,7 @@ function lib:Window(text, preset, closebind)
             DropItemHolder.Position = UDim2.new(0, 6, 0, ROW_H + 2)
             DropItemHolder.Size = UDim2.new(1, -12, 0, 0)
             DropItemHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-            DropItemHolder.ScrollBarThickness = 2
+            DropItemHolder.ScrollBarThickness = 6
             DropItemHolder.ScrollBarImageColor3 = Theme.Border
 
             local DropLayout = Instance.new("UIListLayout")
@@ -1318,7 +1315,7 @@ function lib:Window(text, preset, closebind)
             TextboxFrame.BackgroundColor3 = Theme.Secondary
             TextboxFrame.AnchorPoint = Vector2.new(1, 0.5)
             TextboxFrame.Position = UDim2.new(1, -8, 0.5, 0)
-            TextboxFrame.Size = UDim2.new(0, 120, 0, 24)
+            TextboxFrame.Size = UDim2.new(0, 140, 0, 26)  -- slightly wider
 
             makeCorner(TextboxFrame, 2)
 
@@ -1403,7 +1400,7 @@ function lib:Window(text, preset, closebind)
             BindKeyBg.BackgroundColor3 = Theme.Secondary
             BindKeyBg.AnchorPoint = Vector2.new(1, 0.5)
             BindKeyBg.Position = UDim2.new(1, -8, 0.5, 0)
-            BindKeyBg.Size = UDim2.new(0, 50, 0, 22)
+            BindKeyBg.Size = UDim2.new(0, 60, 0, 24)
 
             makeCorner(BindKeyBg, 2)
 
