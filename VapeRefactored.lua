@@ -228,8 +228,8 @@ end
 ------------------------------------------------------------------------
 -- Library: Window
 ------------------------------------------------------------------------
-local WINDOW_W = 700
-local WINDOW_H = 520
+local WINDOW_W = 680
+local WINDOW_H = 460
 
 function lib:Window(text, preset, closebind)
     CloseBind   = closebind or CloseBind
