@@ -279,11 +279,12 @@ function lib:Window(text, preset, closebind, bgImageUrl)
     bgImage.Parent = Main
     bgImage.BackgroundTransparency = 1
     bgImage.Size = UDim2.new(1, 0, 1, 0)
-    bgImage.ZIndex = -3                       -- below everything
-    bgImage.ScaleType = Enum.ScaleType.Crop    -- fill the window
-    bgImage.Image = ""                        -- default empty
+    bgImage.Position = UDim2.new(0, 0, 0, 0)
+    bgImage.ZIndex = 0                         -- 改为 0，保证可见
+    bgImage.ScaleType = Enum.ScaleType.Crop    -- 裁剪适应
+    bgImage.Image = ""                         -- 默认空
 
-    -- Overlay to maintain glass effect
+    -- Overlay for glass effect (semi-transparent dark layer)
     local overlay = Instance.new("Frame")
     overlay.Name = "Overlay"
     overlay.Parent = Main
@@ -291,12 +292,8 @@ function lib:Window(text, preset, closebind, bgImageUrl)
     overlay.BackgroundTransparency = 0.35
     overlay.BorderSizePixel = 0
     overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.ZIndex = -2                       -- above background, below controls
-
-    -- Set initial background if provided
-    if bgImageUrl and bgImageUrl ~= "" then
-        bgImage.Image = bgImageUrl
-    end
+    overlay.Position = UDim2.new(0, 0, 0, 0)
+    overlay.ZIndex = 1                         -- 压在背景上面，但低于控件
 
     ------------------------------------------------------------------
     -- DragFrame (invisible top bar for dragging)
@@ -1504,6 +1501,9 @@ function lib:Window(text, preset, closebind, bgImageUrl)
     ------------------------------------------------------------------
     function tabhold:SetBackgroundImage(url)
         bgImage.Image = url or ""
+        bgImage.Visible = true
+        bgImage.ImageTransparency = 0
+        bgImage.BackgroundTransparency = 1
     end
 
     function tabhold:GetBackgroundImage()
