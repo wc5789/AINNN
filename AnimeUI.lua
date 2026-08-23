@@ -94,8 +94,12 @@ function Util.Create(className, props, children)
 		end
 	end
 	if children then
-		for _, child in ipairs(children) do
-			child.Parent = inst
+		if typeof(children) == "Instance" then
+			children.Parent = inst
+		else
+			for _, child in ipairs(children) do
+				child.Parent = inst
+			end
 		end
 	end
 	return inst
