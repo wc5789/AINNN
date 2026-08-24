@@ -1,12 +1,30 @@
+--[[
+	Bo UI Library v3
+	轻量级 Roblox UI 库（基于 Bozo Hub 原始布局重构）
+	
+	v3 更新:
+	· [修复] 补回丢失的 WindowClass:CreateTab
+	· [修复] UIGradient.Offset 必须为 Vector2
+	· [新增] 入场动画：从中心弹出（Quint 缓动）
+	· [重做] 退场动画：克隆原窗口本体，撕成两半向左右滑走
+	· [重做] 灵动岛：屏幕顶部居中、iOS 磨砂玻璃质感、流光、状态消息
+	· [新增] TabClass:CreateToggle 开关组件
+	
+	用法:
+	local Bo = loadstring(readfile("BoLibrary.lua"))()
+	local Window = Bo:CreateWindow({ Title = "BOZO HUB" })
+	local Tab = Window:CreateTab({ Name = "Main" })
+	Tab:CreateButton({ Name = "Click", Callback = function() end })
+]]
 
 local Bo = {}
 Bo.__index = Bo
 
 --// 服务
-local TweenService = game:GetService("TweenService")
+local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local Players          = game:GetService("Players")
 
 --// 主题配置
 Bo.Theme = {
@@ -25,6 +43,7 @@ Bo.Theme = {
 --========================================================
 --  工具函数
 --========================================================
+-- 实例工厂
 local function Create(className, props)
 	local inst = Instance.new(className)
 	for k, v in pairs(props or {}) do
@@ -33,6 +52,7 @@ local function Create(className, props)
 	return inst
 end
 
+-- 自动纵向排列
 local function AddListLayout(parent)
 	Create("UIListLayout", {
 		Name = "Layout",
@@ -43,9 +63,9 @@ local function AddListLayout(parent)
 end
 
 --[[
-	流动渐变驱动器（核心修复点）
-	旧版用 Tween.Completed:Wait() 循环，Completed 在某些情况不触发导致动画卡死；
-	新版改用 RenderStepped 逐帧累加时间，数学上绝对连续，永不卡死。
+	流光引擎（RenderStepped 逐帧驱动，永不卡死）
+	注意：UIGradient.Offset 是 Vector2 类型！
+	X: -1 -> 1 线性扫描，形成光带从左到右流动
 ]]
 function Bo.CreateFlowGradient(inst, config)
 	config = config or {}
@@ -61,8 +81,8 @@ function Bo.CreateFlowGradient(inst, config)
 		Offset = Vector2.new(-1, 0),
 	})
 
-	local speed = config.Speed or 2     -- 扫过一次的秒数
-	local pause = config.Pause or 0     -- 每次扫完后停顿秒数
+	local speed = config.Speed or 2   -- 扫过一次的秒数
+	local pause = config.Pause or 0   -- 扫完后的停顿秒数
 	local loop  = config.Loop ~= false
 	local clock = 0
 	local conn
@@ -83,9 +103,9 @@ function Bo.CreateFlowGradient(inst, config)
 			end
 		end
 		if clock <= speed then
-			gradient.Offset = Vector2.new(-1 + (clock / speed) * 2, 0) -- X: -1 -> 1 线性扫描
+			gradient.Offset = Vector2.new(-1 + (clock / speed) * 2, 0)
 		else
-			gradient.Offset = Vector2.new(1, 0)                        -- 停顿期停在右侧外
+			gradient.Offset = Vector2.new(1, 0)
 		end
 	end)
 
@@ -138,33 +158,53 @@ local function MakeDraggable(frame)
 end
 
 --========================================================
---  灵动岛悬浮球（内置开关）
---  可拖动 / 按压放大松手回弹 / 点按切换窗口显隐
+--  iOS 磨砂玻璃质感
+--  半透明深色底 + 白色微光描边 + 圆角胶囊
+--========================================================
+local function ApplyFrost(inst, config)
+	config = config or {}
+	Create("UICorner", {
+		Parent = inst,
+		CornerRadius = UDim.new(0, config.Radius or 17),
+	})
+	Create("UIStroke", {
+		Parent = inst,
+		Color = Color3.fromRGB(255, 255, 255),
+		Thickness = 1,
+		Transparency = 0.82,
+	})
+end
+
+--========================================================
+--  灵动岛（屏幕顶部居中 / 磨砂玻璃 / 流光 / 状态消息 / 可拖动）
 --========================================================
 local function BuildIsland(window)
 	local gui = Create("ScreenGui", {
 		Name = "Bo_Island",
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		ResetOnSpawn = false,
+		DisplayOrder = 999,
 	})
 	pcall(function()
 		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end)
 
-	-- holder 负责缩放动画，pill 负责点击/拖动
+	-- holder 负责定位与按压缩放动画
 	local holder = Create("Frame", {
 		Name = "Holder",
 		Parent = gui,
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.08, 0, 0.5, 0),
-		Size = UDim2.new(0, 46, 0, 46),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8), -- 屏幕顶部居中
+		Size = UDim2.new(0, 120, 0, 34),
 	})
 
+	-- 胶囊主体：半透明黑底模拟磨砂玻璃
 	local pill = Create("TextButton", {
 		Name = "Pill",
 		Parent = holder,
-		BackgroundColor3 = Bo.Theme.Background,
+		BackgroundColor3 = Color3.fromRGB(15, 15, 15),
+		BackgroundTransparency = 0.35,
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
@@ -172,36 +212,70 @@ local function BuildIsland(window)
 		Text = "",
 		AutoButtonColor = false,
 	})
-	Create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = pill })
+	ApplyFrost(pill)
 
-	-- 描边 + 流光（作用于背景，产生呼吸微光）
-	Create("UIStroke", {
-		Name = "IslandStroke",
-		Parent = pill,
-		Color = Bo.Theme.Accent,
-		Thickness = 1.5,
-		Transparency = 0.35,
-	})
+	-- 流光扫过胶囊背景
 	Bo.CreateFlowGradient(pill, {
-		ColorA = Color3.fromRGB(30, 90, 50),
+		ColorA = Color3.fromRGB(40, 40, 40),
 		ColorB = Bo.Theme.Accent,
-		ColorC = Color3.fromRGB(30, 90, 50),
+		ColorC = Color3.fromRGB(40, 40, 40),
 		Speed = 2.5,
-		Pause = 1,
+		Pause = 2,
 	})
 
+	-- 左侧状态指示点
+	local dot = Create("Frame", {
+		Name = "Dot",
+		Parent = pill,
+		BackgroundColor3 = Bo.Theme.Accent,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 12, 0.5, -4),
+		Size = UDim2.new(0, 8, 0, 8),
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = dot })
+
+	-- 状态消息文字
 	local label = Create("TextLabel", {
-		Name = "Label",
+		Name = "Status",
 		Parent = pill,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.new(0, 26, 0, 0),
+		Size = UDim2.new(1, -38, 1, 0),
 		Font = Bo.Theme.FontBold,
 		Text = "Bo",
 		TextColor3 = Bo.Theme.Text,
-		TextSize = 16,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 	})
 
-	-- 状态机：区分"拖动"与"点击"
+	--------------------------------------------------------
+	-- 状态消息系统：Notify("xxx") 显示操作反馈
+	--------------------------------------------------------
+	local msgToken = 0
+	function window.Notify(text, holdTime)
+		msgToken += 1
+		local myToken = msgToken
+		label.Text = tostring(text)
+
+		-- 消息出现时轻微拉宽提示
+		TweenService:Create(holder,
+			TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = UDim2.new(0, math.max(120, #tostring(text) * 7 + 50), 0, 34) }):Play()
+
+		task.delay(holdTime or 2, function()
+			if myToken == msgToken then
+				label.Text = "Bo"
+				TweenService:Create(holder,
+					TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Size = UDim2.new(0, 120, 0, 34) }):Play()
+			end
+		end)
+	end
+
+	--------------------------------------------------------
+	-- 拖动 + 点击判定
+	--------------------------------------------------------
 	local pressed, moved = false, false
 	local pressStart, startPos
 
@@ -213,18 +287,16 @@ local function BuildIsland(window)
 			pressStart = input.Position
 			startPos = holder.Position
 
-			-- 灵动岛按压缩放手感
 			TweenService:Create(holder,
 				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-				{ Size = UDim2.new(0, 58, 0, 58) }):Play()
+				{ Size = UDim2.new(0, 140, 0, 40) }):Play()
 
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					pressed = false
-					-- Back 缓动回弹，Q弹高级
 					TweenService:Create(holder,
 						TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-						{ Size = UDim2.new(0, 46, 0, 46) }):Play()
+						{ Size = UDim2.new(0, 120, 0, 34) }):Play()
 					if not moved then
 						window:Toggle()
 					end
@@ -247,7 +319,7 @@ local function BuildIsland(window)
 		end
 	end)
 
-	window.Island = { GUI = gui, Holder = holder, Pill = pill }
+	window.Island = { GUI = gui, Holder = holder, Pill = pill, Label = label }
 end
 
 --========================================================
@@ -259,6 +331,7 @@ TabClass.__index = TabClass
 function TabClass:CreateButton(config)
 	config = config or {}
 	local theme = Bo.Theme
+	local window = self.Window
 
 	local btn = Create("TextButton", {
 		Name = config.Name or "Button",
@@ -293,10 +366,16 @@ function TabClass:CreateButton(config)
 	end)
 
 	btn.MouseButton1Click:Connect(function()
-		flash.BackgroundTransparency = 0.85 -- 低透明度起步，柔和不刺眼
+		flash.BackgroundTransparency = 0.85 -- 低透明度柔光起步
 		TweenService:Create(flash,
 			TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ BackgroundTransparency = 1 }):Play()
+
+		-- 灵动岛显示操作消息
+		if window and window.Notify then
+			window.Notify("已执行: " .. (config.Name or "?"))
+		end
+
 		if typeof(config.Callback) == "function" then
 			task.spawn(config.Callback)
 		end
@@ -320,6 +399,84 @@ function TabClass:CreateLabel(config)
 		TextColor3 = theme.Text,
 		TextSize = 14,
 	})
+end
+
+-- 开关组件
+function TabClass:CreateToggle(config)
+	config = config or {}
+	local theme = Bo.Theme
+	local window = self.Window
+	local state = config.Default or false
+
+	local btn = Create("TextButton", {
+		Name = config.Name or "Toggle",
+		Parent = self.Scroll,
+		BackgroundColor3 = theme.Element,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, -theme.Padding * 2, 0, theme.ButtonHeight),
+		AutoButtonColor = false,
+		Font = theme.Font,
+		Text = "",
+	})
+
+	Create("TextLabel", {
+		Parent = btn,
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 10, 0, 0),
+		Size = UDim2.new(0.6, 0, 1, 0),
+		Font = theme.Font,
+		Text = config.Name or "Toggle",
+		TextColor3 = theme.Text,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+	})
+
+	-- iOS 风格开关胶囊
+	local track = Create("Frame", {
+		Name = "Track",
+		Parent = btn,
+		BackgroundColor3 = state and theme.Accent or Color3.fromRGB(60, 60, 60),
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.new(0, 42, 0, 22),
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = track })
+
+	local knob = Create("Frame", {
+		Name = "Knob",
+		Parent = track,
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BorderSizePixel = 0,
+		Position = state and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9),
+		Size = UDim2.new(0, 18, 0, 18),
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = knob })
+
+	local api = {}
+	api.Set = function(v, silent)
+		state = v
+		track.BackgroundColor3 = state and theme.Accent or Color3.fromRGB(60, 60, 60)
+		TweenService:Create(knob,
+			TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Position = state and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9),
+		}):Play()
+		if not silent then
+			if window and window.Notify then
+				window.Notify((config.Name or "Toggle") .. ": " .. (state and "ON" or "OFF"))
+			end
+			if typeof(config.Callback) == "function" then
+				task.spawn(config.Callback, state)
+			end
+		end
+	end
+	api.Get = function() return state end
+
+	btn.MouseButton1Click:Connect(function()
+		api.Set(not state)
+	end)
+
+	return api
 end
 
 --========================================================
@@ -358,6 +515,46 @@ local function BuildScrollPage(parent)
 	return scroll
 end
 
+-- ★ v3 补回的关键方法（v2 重构时意外丢失）
+function WindowClass:CreateTab(config)
+	config = config or {}
+
+	local tabBtn = Create("TextButton", {
+		Name = config.Name or "Tab",
+		Parent = self.TabButtons,
+		BackgroundColor3 = self.Theme.Background,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0, 117, 0, 29),
+		Font = self.Theme.FontBold,
+		Text = config.Name or "Tab",
+		TextColor3 = self.Theme.Text,
+		TextSize = 14,
+		LayoutOrder = #self.Tabs + 1,
+	})
+
+	local page = BuildScrollPage(self.TabsContainer)
+	page.Visible = (#self.Tabs == 0)
+
+	local tabObj = setmetatable({
+		Name = config.Name or "Tab",
+		Button = tabBtn,
+		Scroll = page,
+		Window = self,
+	}, TabClass)
+
+	table.insert(self.Tabs, tabObj)
+
+	tabBtn.MouseButton1Click:Connect(function()
+		self:SelectTab(tabObj)
+		if self.Notify then
+			self.Notify("切换到: " .. tabObj.Name)
+		end
+	end)
+
+	return tabObj
+end
+
 function WindowClass:SelectTab(target)
 	for _, tab in ipairs(self.Tabs) do
 		local active = (tab == target)
@@ -367,7 +564,20 @@ function WindowClass:SelectTab(target)
 	end
 end
 
--- 退场动画：窗口分裂两半，左半向左滑走 / 右半向右滑走
+-- 入场动画：从中心弹出
+function WindowClass:_PlayEnterAnimation()
+	local main = self.Main
+	main.Size = UDim2.new(0, 0, 0, 0)
+	main.Position = UDim2.new(
+		self._savedPos.X.Scale, self._savedPos.X.Offset + self._savedSize.X.Offset / 2,
+		self._savedPos.Y.Scale, self._savedPos.Y.Offset + self._savedSize.Y.Offset / 2
+	)
+	TweenService:Create(main,
+		TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+		{ Size = self._savedSize, Position = self._savedPos }):Play()
+end
+
+-- 退场动画：克隆原窗口本体，用裁剪容器撕成两半滑走
 function WindowClass:_PlayExitAnimation(callback)
 	local main = self.Main
 	if not main.Visible then
@@ -377,40 +587,55 @@ function WindowClass:_PlayExitAnimation(callback)
 
 	local size = main.AbsoluteSize
 	local pos = main.AbsolutePosition
+	local halfW = size.X / 2
 
-	local left = Create("Frame", {
+	-- 左裁剪容器 + 完整窗口克隆（露出左半）
+	local leftWrap = Create("Frame", {
 		Parent = self.GUI,
-		BackgroundColor3 = main.BackgroundColor3,
-		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(pos.X, pos.Y),
-		Size = UDim2.fromOffset(math.floor(size.X / 2), size.Y),
-		ZIndex = 50,
+		Size = UDim2.fromOffset(math.floor(halfW), size.Y),
+		ClipsDescendants = true,
+		ZIndex = 100,
 	})
-	local right = Create("Frame", {
+	local leftClone = main:Clone()
+	leftClone.Name = "Exit_Left"
+	leftClone.Parent = leftWrap
+	leftClone.Position = UDim2.fromOffset(0, 0)
+
+	-- 右裁剪容器 + 完整窗口克隆（露出右半）
+	local rightWrap = Create("Frame", {
 		Parent = self.GUI,
-		BackgroundColor3 = main.BackgroundColor3,
-		BorderSizePixel = 0,
-		Position = UDim2.fromOffset(pos.X + size.X - math.ceil(size.X / 2), pos.Y),
-		Size = UDim2.fromOffset(math.ceil(size.X / 2), size.Y),
-		ZIndex = 50,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(pos.X + math.ceil(halfW), pos.Y),
+		Size = UDim2.fromOffset(math.ceil(halfW), size.Y),
+		ClipsDescendants = true,
+		ZIndex = 100,
 	})
+	local rightClone = main:Clone()
+	rightClone.Name = "Exit_Right"
+	rightClone.Parent = rightWrap
+	rightClone.Position = UDim2.fromOffset(-math.floor(halfW), 0)
 
 	main.Visible = false
 
-	local dur = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-	TweenService:Create(left, dur, { Position = left.Position - UDim2.fromOffset(size.X, 0) }):Play()
-	local tw = TweenService:Create(right, dur, { Position = right.Position + UDim2.fromOffset(size.X, 0) })
+	-- 两半分别加速滑出屏幕
+	local dur = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+	TweenService:Create(leftWrap, dur, { Position = leftWrap.Position - UDim2.fromOffset(size.X, 0) }):Play()
+	local tw = TweenService:Create(rightWrap, dur, { Position = rightWrap.Position + UDim2.fromOffset(size.X, 0) })
 	tw:Play()
 	tw.Completed:Once(function()
-		left:Destroy()
-		right:Destroy()
+		leftWrap:Destroy()
+		rightWrap:Destroy()
 		if callback then callback() end
 	end)
 end
 
 function WindowClass:Show()
-	self.Main.Visible = true
+	if self.IsOpen then return end
 	self.IsOpen = true
+	self.Main.Visible = true
+	self:_PlayEnterAnimation()
 end
 
 function WindowClass:Hide(callback)
@@ -448,19 +673,21 @@ function Bo:CreateWindow(config)
 	})
 	gui.Parent = config.Parent or Players.LocalPlayer:WaitForChild("PlayerGui")
 
-	-- 主框架（入场直接切入）
+	local savedPos  = config.Position or UDim2.new(0.22, 0, 0.18, 0)
+	local savedSize = config.Size or UDim2.new(0, 581, 0, 333)
+
 	local main = Create("Frame", {
 		Name = "Main",
 		Parent = gui,
 		BackgroundColor3 = theme.Background,
 		BorderSizePixel = 0,
-		Position = config.Position or UDim2.new(0.22, 0, 0.18, 0),
-		Size = config.Size or UDim2.new(0, 581, 0, 333),
+		Position = savedPos,
+		Size = savedSize,
 	})
 
 	MakeDraggable(main)
 
-	-- 细描边 + 流动描边光（UIGradient 会同时作用于 UIStroke，形成流动描边光）
+	-- 细描边 + 流动描边光
 	Create("UIStroke", {
 		Name = "MainStroke",
 		Parent = main,
@@ -492,7 +719,6 @@ function Bo:CreateWindow(config)
 		Speed = 2,
 	})
 
-	-- 标题
 	local title = Create("TextLabel", {
 		Name = "Title",
 		Parent = main,
@@ -506,7 +732,6 @@ function Bo:CreateWindow(config)
 		TextXAlignment = Enum.TextXAlignment.Left,
 	})
 
-	-- 左侧标签列
 	local tabButtons = Create("Frame", {
 		Name = "TabButtons",
 		Parent = main,
@@ -516,7 +741,6 @@ function Bo:CreateWindow(config)
 	})
 	AddListLayout(tabButtons)
 
-	-- 右侧内容容器
 	local tabsContainer = Create("Frame", {
 		Name = "TabsContainer",
 		Parent = main,
@@ -536,10 +760,14 @@ function Bo:CreateWindow(config)
 		Tabs = {},
 		Theme = theme,
 		IsOpen = true,
+		_savedPos = savedPos,
+		_savedSize = savedSize,
 	}, WindowClass)
 
-	-- 灵动岛悬浮球（写死内置）
 	BuildIsland(window)
+
+	-- 首次入场动画
+	window:_PlayEnterAnimation()
 
 	return window
 end
