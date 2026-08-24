@@ -1,11 +1,3 @@
---[[
-    ================================================================================
-    BLACKBOX HUB - PREMIUM ROBLOX UI LIBRARY (V2.5)
-    Style: Satirical Adult Video Aesthetic / Dark Modern SaaS UI
-    Palette: 80% Black (#080808) | 15% Dark Gray (#151515) | 5% Accent Gold (#FFA31A)
-    ================================================================================
---]]
-
 local Library = {
     Version = "2.5.0",
     ActiveWindow = nil,
@@ -22,9 +14,9 @@ local Library = {
             TextPrimary = Color3.fromRGB(245, 245, 245),
             TextSecondary = Color3.fromRGB(167, 167, 167),
             TextMuted = Color3.fromRGB(102, 102, 102),
-            Accent = Color3.fromRGB(255, 163, 26),        -- #FFA31A Brand Gold
-            AccentHover = Color3.fromRGB(255, 181, 42),   -- #FFB52A
-            AccentBright = Color3.fromRGB(255, 209, 92),  -- #FFD15C
+            Accent = Color3.fromRGB(255, 163, 26), 
+            AccentHover = Color3.fromRGB(255, 181, 42), 
+            AccentBright = Color3.fromRGB(255, 209, 92), 
             AccentDark = Color3.fromRGB(180, 110, 10),
             Danger = Color3.fromRGB(231, 76, 60),
             Success = Color3.fromRGB(46, 204, 113),
@@ -40,7 +32,6 @@ local Library = {
 
 Library.CurrentTheme = Library.Themes.BlackGold
 
--- Services
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -50,7 +41,6 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Safe GUI Container Detection
 local function GetSafeParent()
     local success, result = pcall(function()
         if gethui then
@@ -65,7 +55,6 @@ local function GetSafeParent()
     return game:GetService("CoreGui")
 end
 
--- Helper Utilities
 local function RegisterConnection(conn)
     table.insert(Library.Connections, conn)
     return conn
@@ -1165,94 +1154,114 @@ end))
                 table.insert(Library.SearchRegistry, { Name = name, Description = desc, Frame = BtnFrame, Tab = TabObj })
                 return BtnFrame
             end
+-- 2. TOGGLE
+function SectionObj:CreateToggle(tglOpt)
+    tglOpt = tglOpt or {}
+    local name = tglOpt.Name or "Toggle"
+    local desc = tglOpt.Description or ""
+    local default = tglOpt.CurrentValue or false
+    local flag = tglOpt.Flag or name
+    local callback = tglOpt.Callback or function() end
 
-            -- 2. TOGGLE
-            function SectionObj:CreateToggle(tglOpt)
-                tglOpt = tglOpt or {}
-                local name = tglOpt.Name or "Toggle"
-                local desc = tglOpt.Description or ""
-                local default = tglOpt.CurrentValue or false
-                local flag = tglOpt.Flag or name
-                local callback = tglOpt.Callback or function() end
+    Library.Flags[flag] = default
 
-                Library.Flags[flag] = default
+    local TweenService = game:GetService("TweenService")
 
-                local TglFrame = Create("Frame", {
-                    Size = UDim2.new(1, 0, 0, 38),
-                    BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
-                    Parent = SectionCard
-                }, {
-                    MakeCorner(nil, 5),
-                    MakeStroke(nil, Library.CurrentTheme.Border, 1),
-                    Create("TextLabel", {
-                        Size = UDim2.new(1, -60, 0, desc ~= "" and 18 or 38),
-                        Position = UDim2.new(0, 10, 0, desc ~= "" and 3 or 0),
-                        BackgroundTransparency = 1,
-                        Text = name,
-                        TextColor3 = Library.CurrentTheme.TextPrimary,
-                        TextSize = 13,
-                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-                        TextXAlignment = Enum.TextXAlignment.Left
-                    }),
-                    Create("Frame", {
-                        Name = "Switch",
-                        Size = UDim2.new(0, 42, 0, 22),
-                        Position = UDim2.new(1, -52, 0.5, -11),
-                        BackgroundColor3 = default and Library.CurrentTheme.Accent or Library.CurrentTheme.Border,
-                        Parent = TglFrame
-                    }, {
-                        MakeCorner(nil, 11),
-                        Create("Frame", {
-                            Name = "Thumb",
-                            Size = UDim2.new(0, 16, 0, 16),
-                            Position = UDim2.new(0, default and 23 or 3, 0.5, -8),
-                            BackgroundColor3 = default and Library.CurrentTheme.Background or Library.CurrentTheme.TextSecondary,
-                            Parent = TglFrame
-                        }, { MakeCorner(nil, 8) })
-                    }),
-                    Create("TextButton", {
-                        Size = UDim2.new(1, 0, 1, 0),
-                        BackgroundTransparency = 1,
-                        Text = "",
-                        Parent = TglFrame
-                    })
-                })
+    local TglFrame = Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 38),
+        BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
+        Parent = SectionCard
+    }, {
+        MakeCorner(nil, 0),
+        MakeStroke(nil, Library.CurrentTheme.Border, 1),
+        Create("TextLabel", {
+            Size = UDim2.new(1, -60, 0, desc ~= "" and 18 or 38),
+            Position = UDim2.new(0, 10, 0, desc ~= "" and 3 or 0),
+            BackgroundTransparency = 1,
+            Text = name,
+            TextColor3 = Library.CurrentTheme.TextPrimary,
+            TextSize = 13,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            TextXAlignment = Enum.TextXAlignment.Left
+        })
+    })
 
-                if desc ~= "" then
-                    Create("TextLabel", {
-                        Size = UDim2.new(1, -60, 0, 14),
-                        Position = UDim2.new(0, 10, 0, 20),
-                        BackgroundTransparency = 1,
-                        Text = desc,
-                        TextColor3 = Library.CurrentTheme.TextMuted,
-                        TextSize = 11,
-                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        Parent = TglFrame
-                    })
-                end
+    local SwitchFrame = Create("Frame", {
+        Name = "Switch",
+        Size = UDim2.new(0, 42, 0, 22),
+        Position = UDim2.new(1, -52, 0.5, -11),
+        BackgroundColor3 = default and Library.CurrentTheme.Accent or Library.CurrentTheme.Border,
+        Parent = TglFrame
+    }, {
+        MakeCorner(nil, 0)
+    })
 
-                local state = default
-                local function SetState(val)
-                    state = val
-                    Library.Flags[flag] = state
-                    local switch = TglFrame.Switch
-                    local thumb = switch.Thumb
-                    Library:Tween(switch, 0.15, { BackgroundColor3 = state and Library.CurrentTheme.Accent or Library.CurrentTheme.Border })
-                    Library:Tween(thumb, 0.15, {
-                        Position = UDim2.new(0, state and 23 or 3, 0.5, -8),
-                        BackgroundColor3 = state and Library.CurrentTheme.Background or Library.CurrentTheme.TextSecondary
-                    })
-                    callback(state)
-                end
+    local ThumbFrame = Create("Frame", {
+        Name = "Thumb",
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(0, default and 23 or 3, 0.5, -8),
+        BackgroundColor3 = default and Library.CurrentTheme.Background or Library.CurrentTheme.TextSecondary,
+        Parent = SwitchFrame
+    }, {
+        MakeCorner(nil, 0)
+    })
 
-                TglFrame.TextButton.MouseButton1Click:Connect(function()
-                    SetState(not state)
-                end)
+    local TextButton = Create("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        Parent = TglFrame
+    })
 
-                table.insert(Library.SearchRegistry, { Name = name, Description = desc, Frame = TglFrame, Tab = TabObj })
-                return { SetValue = SetState }
-            end
+    if desc ~= "" then
+        Create("TextLabel", {
+            Size = UDim2.new(1, -60, 0, 14),
+            Position = UDim2.new(0, 10, 0, 20),
+            BackgroundTransparency = 1,
+            Text = desc,
+            TextColor3 = Library.CurrentTheme.TextMuted,
+            TextSize = 11,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = TglFrame
+        })
+    end
+
+    local state = default
+    local switchTween, thumbTween
+
+    local function SetState(val)
+        state = val
+        Library.Flags[flag] = state
+
+        local targetSwitchColor = state and Library.CurrentTheme.Accent or Library.CurrentTheme.Border
+        local targetThumbPos = UDim2.new(0, state and 23 or 3, 0.5, -8)
+        local targetThumbColor = state and Library.CurrentTheme.Background or Library.CurrentTheme.TextSecondary
+
+        if switchTween then switchTween:Cancel() end
+        if thumbTween then thumbTween:Cancel() end
+
+        switchTween = TweenService:Create(SwitchFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            BackgroundColor3 = targetSwitchColor
+        })
+        thumbTween = TweenService:Create(ThumbFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Position = targetThumbPos,
+            BackgroundColor3 = targetThumbColor
+        })
+
+        switchTween:Play()
+        thumbTween:Play()
+
+        callback(state)
+    end
+
+    TextButton.MouseButton1Click:Connect(function()
+        SetState(not state)
+    end)
+
+    table.insert(Library.SearchRegistry, { Name = name, Description = desc, Frame = TglFrame, Tab = TabObj })
+    return { SetValue = SetState }
+end
 ----- 拉条部分
 function SectionObj:CreateSlider(sldOpt)
     sldOpt = sldOpt or {}
