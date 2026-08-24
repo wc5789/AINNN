@@ -1172,7 +1172,7 @@ function SectionObj:CreateToggle(tglOpt)
         BackgroundColor3 = Library.CurrentTheme.SecondaryBackground,
         Parent = SectionCard
     }, {
-        MakeCorner(nil, 0),
+        MakeCorner(nil, 5), -- 保留原来的圆角
         MakeStroke(nil, Library.CurrentTheme.Border, 1),
         Create("TextLabel", {
             Size = UDim2.new(1, -60, 0, desc ~= "" and 18 or 38),
@@ -1193,7 +1193,7 @@ function SectionObj:CreateToggle(tglOpt)
         BackgroundColor3 = default and Library.CurrentTheme.Accent or Library.CurrentTheme.Border,
         Parent = TglFrame
     }, {
-        MakeCorner(nil, 0)
+        MakeCorner(nil, 0) -- 开关改为方形
     })
 
     local ThumbFrame = Create("Frame", {
@@ -1203,7 +1203,7 @@ function SectionObj:CreateToggle(tglOpt)
         BackgroundColor3 = default and Library.CurrentTheme.Background or Library.CurrentTheme.TextSecondary,
         Parent = SwitchFrame
     }, {
-        MakeCorner(nil, 0)
+        MakeCorner(nil, 0) -- 滑块改为方形
     })
 
     local TextButton = Create("TextButton", {
@@ -1228,29 +1228,42 @@ function SectionObj:CreateToggle(tglOpt)
     end
 
     local state = default
-    local switchTween, thumbTween
+    local activeTweens = {}
 
     local function SetState(val)
         state = val
         Library.Flags[flag] = state
 
+        -- 取消所有进行中的动画，防止冲突
+        for _, tween in ipairs(activeTweens) do
+            tween:Cancel()
+        end
+        table.clear(activeTweens)
+
         local targetSwitchColor = state and Library.CurrentTheme.Accent or Library.CurrentTheme.Border
         local targetThumbPos = UDim2.new(0, state and 23 or 3, 0.5, -8)
         local targetThumbColor = state and Library.CurrentTheme.Background or Library.CurrentTheme.TextSecondary
 
-        if switchTween then switchTween:Cancel() end
-        if thumbTween then thumbTween:Cancel() end
-
-        switchTween = TweenService:Create(SwitchFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        -- 开关背景颜色平滑过渡
+        local switchColorTween = TweenService:Create(SwitchFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundColor3 = targetSwitchColor
         })
-        thumbTween = TweenService:Create(ThumbFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-            Position = targetThumbPos,
+        table.insert(activeTweens, switchColorTween)
+        switchColorTween:Play()
+
+        -- 滑块颜色平滑过渡
+        local thumbColorTween = TweenService:Create(ThumbFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundColor3 = targetThumbColor
         })
+        table.insert(activeTweens, thumbColorTween)
+        thumbColorTween:Play()
 
-        switchTween:Play()
-        thumbTween:Play()
+        -- 滑块移动：Elastic 缓动，产生高级弹性回弹
+        local thumbPosTween = TweenService:Create(ThumbFrame, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out, 0, false, 0), {
+            Position = targetThumbPos
+        })
+        table.insert(activeTweens, thumbPosTween)
+        thumbPosTween:Play()
 
         callback(state)
     end
