@@ -1,15 +1,19 @@
+
 local Bo = {}
 Bo.__index = Bo
 
 --// 服务
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
---// 主题配置（关键 UI 属性）
+--// 主题配置
 Bo.Theme = {
 	Background    = Color3.fromRGB(25, 25, 25),
 	BackgroundAlt = Color3.fromRGB(20, 20, 20),
 	Element       = Color3.fromRGB(25, 25, 25),
+	ElementHover  = Color3.fromRGB(35, 35, 35),
 	Accent        = Color3.fromRGB(85, 255, 127),
 	Text          = Color3.fromRGB(255, 255, 255),
 	Font          = Enum.Font.Gotham,
@@ -18,7 +22,9 @@ Bo.Theme = {
 	ButtonHeight  = 34,
 }
 
---// 工具函数
+--========================================================
+--  工具函数
+--========================================================
 local function Create(className, props)
 	local inst = Instance.new(className)
 	for k, v in pairs(props or {}) do
@@ -36,17 +42,70 @@ local function AddListLayout(parent)
 	})
 end
 
---// 拖动支持（保留自原版）
+--[[
+	流动渐变驱动器（核心修复点）
+	旧版用 Tween.Completed:Wait() 循环，Completed 在某些情况不触发导致动画卡死；
+	新版改用 RenderStepped 逐帧累加时间，数学上绝对连续，永不卡死。
+]]
+function Bo.CreateFlowGradient(inst, config)
+	config = config or {}
+
+	local gradient = Create("UIGradient", {
+		Name = "FlowGradient",
+		Parent = inst,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, config.ColorA or Color3.fromRGB(60, 60, 60)),
+			ColorSequenceKeypoint.new(0.50, config.ColorB or Color3.fromRGB(255, 255, 255)),
+			ColorSequenceKeypoint.new(1.00, config.ColorC or Color3.fromRGB(60, 60, 60)),
+		}),
+		Offset = -1,
+	})
+
+	local speed = config.Speed or 2     -- 扫过一次的秒数
+	local pause = config.Pause or 0     -- 每次扫完后停顿秒数
+	local loop  = config.Loop ~= false
+	local clock = 0
+	local conn
+
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if not inst.Parent then
+			conn:Disconnect()
+			return
+		end
+		clock += dt
+		local cycle = speed + pause
+		if clock >= cycle then
+			if loop then
+				clock -= cycle
+			else
+				conn:Disconnect()
+				return
+			end
+		end
+		if clock <= speed then
+			gradient.Offset = -1 + (clock / speed) * 2 -- -1 -> 1 线性扫描
+		else
+			gradient.Offset = 1                        -- 停顿期停在右侧外
+		end
+	end)
+
+	return gradient, conn
+end
+
+--========================================================
+--  拖动支持（鼠标 + 触摸通用）
+--========================================================
 local function MakeDraggable(frame)
 	local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
 
 	local function update(input)
 		local delta = input.Position - dragStart
-		local pos = UDim2.new(
-			startPos.X.Scale, startPos.X.Offset + delta.X,
-			startPos.Y.Scale, startPos.Y.Offset + delta.Y
-		)
-		TweenService:Create(frame, TweenInfo.new(0.25), { Position = pos }):Play()
+		TweenService:Create(frame, TweenInfo.new(0.1), {
+			Position = UDim2.new(
+				startPos.X.Scale, startPos.X.Offset + delta.X,
+				startPos.Y.Scale, startPos.Y.Offset + delta.Y
+			),
+		}):Play()
 	end
 
 	frame.InputBegan:Connect(function(input)
@@ -79,7 +138,120 @@ local function MakeDraggable(frame)
 end
 
 --========================================================
---  Tab（标签页对象）
+--  灵动岛悬浮球（内置开关）
+--  可拖动 / 按压放大松手回弹 / 点按切换窗口显隐
+--========================================================
+local function BuildIsland(window)
+	local gui = Create("ScreenGui", {
+		Name = "Bo_Island",
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		ResetOnSpawn = false,
+	})
+	pcall(function()
+		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	end)
+
+	-- holder 负责缩放动画，pill 负责点击/拖动
+	local holder = Create("Frame", {
+		Name = "Holder",
+		Parent = gui,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.08, 0, 0.5, 0),
+		Size = UDim2.new(0, 46, 0, 46),
+	})
+
+	local pill = Create("TextButton", {
+		Name = "Pill",
+		Parent = holder,
+		BackgroundColor3 = Bo.Theme.Background,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(1, 0, 1, 0),
+		Text = "",
+		AutoButtonColor = false,
+	})
+	Create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = pill })
+
+	-- 描边 + 流光（作用于背景，产生呼吸微光）
+	Create("UIStroke", {
+		Name = "IslandStroke",
+		Parent = pill,
+		Color = Bo.Theme.Accent,
+		Thickness = 1.5,
+		Transparency = 0.35,
+	})
+	Bo.CreateFlowGradient(pill, {
+		ColorA = Color3.fromRGB(30, 90, 50),
+		ColorB = Bo.Theme.Accent,
+		ColorC = Color3.fromRGB(30, 90, 50),
+		Speed = 2.5,
+		Pause = 1,
+	})
+
+	local label = Create("TextLabel", {
+		Name = "Label",
+		Parent = pill,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		Font = Bo.Theme.FontBold,
+		Text = "Bo",
+		TextColor3 = Bo.Theme.Text,
+		TextSize = 16,
+	})
+
+	-- 状态机：区分"拖动"与"点击"
+	local pressed, moved = false, false
+	local pressStart, startPos
+
+	pill.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			pressed = true
+			moved = false
+			pressStart = input.Position
+			startPos = holder.Position
+
+			-- 灵动岛按压缩放手感
+			TweenService:Create(holder,
+				TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+				{ Size = UDim2.new(0, 58, 0, 58) }):Play()
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					pressed = false
+					-- Back 缓动回弹，Q弹高级
+					TweenService:Create(holder,
+						TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+						{ Size = UDim2.new(0, 46, 0, 46) }):Play()
+					if not moved then
+						window:Toggle()
+					end
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if pressed and (input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch) then
+			local d = input.Position - pressStart
+			if math.abs(d.X) > 4 or math.abs(d.Y) > 4 then
+				moved = true
+			end
+			holder.Position = UDim2.new(
+				startPos.X.Scale, startPos.X.Offset + d.X,
+				startPos.Y.Scale, startPos.Y.Offset + d.Y
+			)
+		end
+	end)
+
+	window.Island = { GUI = gui, Holder = holder, Pill = pill }
+end
+
+--========================================================
+--  Tab 对象
 --========================================================
 local TabClass = {}
 TabClass.__index = TabClass
@@ -94,17 +266,37 @@ function TabClass:CreateButton(config)
 		BackgroundColor3 = theme.Element,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, -theme.Padding * 2, 0, theme.ButtonHeight),
-		AutoButtonColor = true,
+		AutoButtonColor = false,
 		Font = theme.Font,
 		Text = config.Name or "Button",
 		TextColor3 = theme.Text,
 		TextSize = 14,
 	})
+	btn.ZIndex = 2
+
+	-- 半透明柔光层（点击反馈）
+	local flash = Create("Frame", {
+		Name = "Flash",
+		Parent = btn,
+		BackgroundColor3 = theme.Text,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 1, 0),
+		ZIndex = 1,
+	})
+
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = theme.ElementHover }):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = theme.Element }):Play()
+	end)
 
 	btn.MouseButton1Click:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = theme.Accent }):Play()
-		task.wait(0.15)
-		TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = theme.Element }):Play()
+		flash.BackgroundTransparency = 0.85 -- 低透明度起步，柔和不刺眼
+		TweenService:Create(flash,
+			TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 1 }):Play()
 		if typeof(config.Callback) == "function" then
 			task.spawn(config.Callback)
 		end
@@ -117,10 +309,9 @@ function TabClass:CreateLabel(config)
 	config = config or {}
 	local theme = Bo.Theme
 
-	local label = Create("TextLabel", {
+	return Create("TextLabel", {
 		Name = config.Name or "Label",
 		Parent = self.Scroll,
-		BackgroundColor3 = theme.Element,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, -theme.Padding * 2, 0, theme.ButtonHeight),
@@ -129,16 +320,14 @@ function TabClass:CreateLabel(config)
 		TextColor3 = theme.Text,
 		TextSize = 14,
 	})
-	return label
 end
 
 --========================================================
---  Window（窗口对象）
+--  Window 对象
 --========================================================
 local WindowClass = {}
 WindowClass.__index = WindowClass
 
--- 内部：构建一个可滚动的标签内容区
 local function BuildScrollPage(parent)
 	local scroll = Create("ScrollingFrame", {
 		Parent = parent,
@@ -148,7 +337,6 @@ local function BuildScrollPage(parent)
 		Size = UDim2.new(1, 0, 1, 0),
 		CanvasSize = UDim2.new(0, 0, 0, 0),
 		ScrollBarThickness = 3,
-		ScrollingEnabled = true,
 		Visible = false,
 		BottomImage = "",
 		TopImage = "",
@@ -162,48 +350,12 @@ local function BuildScrollPage(parent)
 		PaddingTop = UDim.new(0, Bo.Theme.Padding),
 	})
 
-	-- 自动更新 CanvasSize 以适应内容
 	local layout = scroll:FindFirstChildOfClass("UIListLayout")
 	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + Bo.Theme.Padding * 2)
 	end)
 
 	return scroll
-end
-
-function WindowClass:CreateTab(config)
-	config = config or {}
-
-	local tabBtn = Create("TextButton", {
-		Name = config.Name or "Tab",
-		Parent = self.TabButtons,
-		BackgroundColor3 = self.Theme.Background,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Size = UDim2.new(0, 117, 0, 29),
-		Font = self.Theme.FontBold,
-		Text = config.Name or "Tab",
-		TextColor3 = self.Theme.Text,
-		TextSize = 14,
-		LayoutOrder = #self.Tabs + 1,
-	})
-
-	local page = BuildScrollPage(self.TabsContainer)
-	page.Visible = (#self.Tabs == 0) -- 第一个标签默认显示
-
-	local tabObj = setmetatable({
-		Name = config.Name or "Tab",
-		Button = tabBtn,
-		Scroll = page,
-	}, TabClass)
-
-	table.insert(self.Tabs, tabObj)
-
-	tabBtn.MouseButton1Click:Connect(function()
-		self:SelectTab(tabObj)
-	end)
-
-	return tabObj
 end
 
 function WindowClass:SelectTab(target)
@@ -215,6 +367,73 @@ function WindowClass:SelectTab(target)
 	end
 end
 
+-- 退场动画：窗口分裂两半，左半向左滑走 / 右半向右滑走
+function WindowClass:_PlayExitAnimation(callback)
+	local main = self.Main
+	if not main.Visible then
+		if callback then callback() end
+		return
+	end
+
+	local size = main.AbsoluteSize
+	local pos = main.AbsolutePosition
+
+	local left = Create("Frame", {
+		Parent = self.GUI,
+		BackgroundColor3 = main.BackgroundColor3,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(pos.X, pos.Y),
+		Size = UDim2.fromOffset(math.floor(size.X / 2), size.Y),
+		ZIndex = 50,
+	})
+	local right = Create("Frame", {
+		Parent = self.GUI,
+		BackgroundColor3 = main.BackgroundColor3,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(pos.X + size.X - math.ceil(size.X / 2), pos.Y),
+		Size = UDim2.fromOffset(math.ceil(size.X / 2), size.Y),
+		ZIndex = 50,
+	})
+
+	main.Visible = false
+
+	local dur = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+	TweenService:Create(left, dur, { Position = left.Position - UDim2.fromOffset(size.X, 0) }):Play()
+	local tw = TweenService:Create(right, dur, { Position = right.Position + UDim2.fromOffset(size.X, 0) })
+	tw:Play()
+	tw.Completed:Once(function()
+		left:Destroy()
+		right:Destroy()
+		if callback then callback() end
+	end)
+end
+
+function WindowClass:Show()
+	self.Main.Visible = true
+	self.IsOpen = true
+end
+
+function WindowClass:Hide(callback)
+	if not self.IsOpen then return end
+	self.IsOpen = false
+	self:_PlayExitAnimation(callback)
+end
+
+function WindowClass:Toggle()
+	if self.IsOpen then
+		self:Hide()
+	else
+		self:Show()
+	end
+end
+
+function WindowClass:Destroy()
+	if self.Island and self.Island.GUI then
+		self.Island.GUI:Destroy()
+	end
+	self.GUI:Destroy()
+end
+
 --========================================================
 --  Bo 入口
 --========================================================
@@ -222,24 +441,14 @@ function Bo:CreateWindow(config)
 	config = config or {}
 	local theme = Bo.Theme
 
-	-- 主 ScreenGui
 	local gui = Create("ScreenGui", {
 		Name = config.Name or "Bo_UI",
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		ResetOnSpawn = false,
 	})
+	gui.Parent = config.Parent or Players.LocalPlayer:WaitForChild("PlayerGui")
 
-	local function mount(parent)
-		gui.Parent = parent or game.Players.LocalPlayer:WaitForChild("PlayerGui")
-	end
-	mount(config.Parent)
-
-	-- 若在非游戏环境（Studio 命令行等）下找不到 PlayerGui，尝试 CoreGui
-	if not gui.Parent then
-		pcall(function() mount(game:GetService("CoreGui")) end)
-	end
-
-	-- 主框架
+	-- 主框架（入场直接切入）
 	local main = Create("Frame", {
 		Name = "Main",
 		Parent = gui,
@@ -251,22 +460,45 @@ function Bo:CreateWindow(config)
 
 	MakeDraggable(main)
 
-	-- 标题栏
+	-- 细描边 + 流动描边光（UIGradient 会同时作用于 UIStroke，形成流动描边光）
+	Create("UIStroke", {
+		Name = "MainStroke",
+		Parent = main,
+		Color = theme.Accent,
+		Thickness = 1,
+		Transparency = 0.4,
+	})
+	Bo.CreateFlowGradient(main, {
+		ColorA = Color3.fromRGB(20, 70, 40),
+		ColorB = theme.Accent,
+		ColorC = Color3.fromRGB(20, 70, 40),
+		Speed = 3,
+		Pause = 1.2,
+	})
+
+	-- 标题栏分隔线流光
 	local titleBar = Create("Frame", {
 		Name = "TitleBar",
 		Parent = main,
 		BackgroundColor3 = theme.Accent,
 		BorderSizePixel = 0,
-		Size = UDim2.new(1, 0, 0, 2),
 		Position = UDim2.new(0, 0, 0, 40),
+		Size = UDim2.new(1, 0, 0, 2),
+	})
+	Bo.CreateFlowGradient(titleBar, {
+		ColorA = Color3.fromRGB(25, 80, 45),
+		ColorB = Color3.fromRGB(255, 255, 255),
+		ColorC = Color3.fromRGB(25, 80, 45),
+		Speed = 2,
 	})
 
+	-- 标题
 	local title = Create("TextLabel", {
 		Name = "Title",
 		Parent = main,
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0, 12, 0, 0),
-		Size = UDim2.new(0, 136, 0, 40),
+		Size = UDim2.new(0, 200, 0, 40),
 		Font = theme.FontBold,
 		Text = config.Title or "Bo Hub",
 		TextColor3 = theme.Text,
@@ -274,7 +506,7 @@ function Bo:CreateWindow(config)
 		TextXAlignment = Enum.TextXAlignment.Left,
 	})
 
-	-- 左侧标签按钮列
+	-- 左侧标签列
 	local tabButtons = Create("Frame", {
 		Name = "TabButtons",
 		Parent = main,
@@ -284,7 +516,7 @@ function Bo:CreateWindow(config)
 	})
 	AddListLayout(tabButtons)
 
-	-- 右侧标签内容容器
+	-- 右侧内容容器
 	local tabsContainer = Create("Frame", {
 		Name = "TabsContainer",
 		Parent = main,
@@ -298,19 +530,16 @@ function Bo:CreateWindow(config)
 		GUI = gui,
 		Main = main,
 		Title = title,
+		TitleBar = titleBar,
 		TabButtons = tabButtons,
 		TabsContainer = tabsContainer,
 		Tabs = {},
 		Theme = theme,
+		IsOpen = true,
 	}, WindowClass)
 
-	-- 关闭/显示切换（可选）
-	function window:Toggle(visible)
-		main.Visible = (visible ~= nil) and visible or not main.Visible
-	end
-	function window:Destroy()
-		gui:Destroy()
-	end
+	-- 灵动岛悬浮球（写死内置）
+	BuildIsland(window)
 
 	return window
 end
