@@ -692,7 +692,7 @@ function Bo:CreateWindow(config)
 		Name = "MainStroke",
 		Parent = main,
 		Color = theme.Accent,
-		Thickness = 1,
+		Thickness = 3,
 		Transparency = 0.4,
 	})
 	Bo.CreateFlowGradient(main, {
