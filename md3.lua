@@ -1,6 +1,10 @@
 --[[
-    MD3UI v1.3.0
+    MD3UI v1.3.1
     Material Design 3 UI Library for Roblox
+
+    v1.3.1 修复:
+      • tab._refresh 里 self 指向错误 (attempt to call missing method 'Color')
+      • Snackbar:Show 里 self:Button 指向错误
 
     用法:
         local MD3 = loadstring(game:HttpGet(URL))()
@@ -16,7 +20,7 @@ local Players           = game:GetService("Players")
 
 local MD3 = {}
 MD3.__index = MD3
-MD3.Version = "1.3.0"
+MD3.Version = "1.3.1"
 
 --==================================================================
 -- 1. 颜色 Token
@@ -148,7 +152,7 @@ local function playRipple(parent, relX, relY, color)
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0, relX, 0, relY),
         Size = UDim2.new(0, 0, 0, 0),
-        ZIndex = (parent.ZIndex or 1) + 1,
+        ZIndex = (parent.ZIndex or 1) + 2,
         Parent = parent,
     })
     addCorner(ripple, UDim.new(0.5, 0))
@@ -772,7 +776,7 @@ function MD3:Checkbox(props)
 end
 
 --------------------------------------------------------------------
--- 5.6 Radio  (Group 用字符串)
+-- 5.6 Radio
 --------------------------------------------------------------------
 function MD3:Radio(props)
     props = props or {}
@@ -842,7 +846,6 @@ function MD3:Radio(props)
 
     comp:SetThemeFn(function() apply(false) end)
 
-    -- 加入分组
     if props.Group then
         self._radioGroups[props.Group] = self._radioGroups[props.Group] or {}
         table.insert(self._radioGroups[props.Group], comp)
@@ -1514,7 +1517,6 @@ function MD3:Dialog(props)
     })
 
     local comp = newComponent(self, dialog)
-    comp.Root = dialog
 
     comp:SetThemeFn(function()
         dialog.BackgroundColor3 = self:Color("SurfaceContainerHigh")
@@ -1593,6 +1595,9 @@ end
 function MD3:Snackbar(props)
     props = props or {}
 
+    -- ⭐ 捕获外层 self (MD3 实例)
+    local windowSelf = self
+
     local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
     local snW = math.min(320, vp.X - 40)
 
@@ -1640,7 +1645,8 @@ function MD3:Snackbar(props)
         end
 
         if options.Action then
-            actionBtn = self:Button({
+            -- ⭐ 用外层 windowSelf 而不是 comp 自身
+            actionBtn = windowSelf:Button({
                 Parent = container,
                 Text = options.Action,
                 Variant = "Text",
@@ -1688,6 +1694,9 @@ end
 --==================================================================
 function MD3:CreateWindow(props)
     props = props or {}
+
+    -- ⭐ 捕获外层 self (MD3 实例)，供 tab._refresh 使用
+    local windowSelf = self
 
     local cam = workspace.CurrentCamera
     local vp  = cam and cam.ViewportSize or Vector2.new(1280, 720)
@@ -1741,7 +1750,7 @@ function MD3:CreateWindow(props)
         Parent = topBar,
     })
 
-    -- 按钮脱离 topBar，避免误触发拖动
+    -- 关闭按钮脱离 topBar，避免误触发拖动
     local closeBtn = create("TextButton", {
         Name = "CloseBtn",
         Text = "✕",
@@ -1921,14 +1930,13 @@ function MD3:CreateWindow(props)
             Parent = btn,
         })
 
-        -- ✅ 换成这样
         local page = create("ScrollingFrame", {
             Name = "Page_" .. tabTitle,
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,   -- ⭐ 自动
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
             ScrollBarThickness = 3,
             ScrollBarImageColor3 = Color3.new(1, 1, 1),
@@ -1942,9 +1950,6 @@ function MD3:CreateWindow(props)
             Padding = UDim.new(0, 8),
             SortOrder = Enum.SortOrder.LayoutOrder,
         })
-        -- 删除手动监听 updateCanvas 的整段逻辑
-
-        local windowSelf = self
 
         local tab = {
             Title   = tabTitle,
@@ -1955,6 +1960,7 @@ function MD3:CreateWindow(props)
             Window  = comp,
         }
 
+        -- ⭐ 关键修复：用 windowSelf 而非 self
         function tab._refresh()
             local active = (currentTab == tab)
             if active then
