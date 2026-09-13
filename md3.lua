@@ -1,9 +1,10 @@
 --[[
-    MD3UI v1.3.1
+    MD3UI v1.3.2
     Material Design 3 UI Library for Roblox
 
-    v1.3.1 修复:
-      • tab._refresh 里 self 指向错误 (attempt to call missing method 'Color')
+    v1.3.2 修复:
+      • Chip / ProgressBar 的 Width 参数支持 number / UDim2
+      • tab._refresh 里 self 指向错误
       • Snackbar:Show 里 self:Button 指向错误
 
     用法:
@@ -20,7 +21,7 @@ local Players           = game:GetService("Players")
 
 local MD3 = {}
 MD3.__index = MD3
-MD3.Version = "1.3.1"
+MD3.Version = "1.3.2"
 
 --==================================================================
 -- 1. 颜色 Token
@@ -137,6 +138,17 @@ local function tween(inst, props, time, style, dir)
     local t = TweenService:Create(inst, info, props)
     t:Play()
     return t
+end
+
+-- ⭐ 通用：把 number / UDim2 归一化成 UDim2
+local function resolveSize(width, height, default)
+    if width == nil then
+        return default or UDim2.new(1, 0, 0, height or 32)
+    end
+    if typeof(width) == "number" then
+        return UDim2.new(0, width, 0, height or 32)
+    end
+    return width
 end
 
 local function playRipple(parent, relX, relY, color)
@@ -307,14 +319,7 @@ function MD3:Button(props)
     local width    = props.Width
     local disabled = props.Disabled == true
 
-    local size
-    if width == nil then
-        size = UDim2.new(1, 0, 0, height)
-    elseif typeof(width) == "number" then
-        size = UDim2.new(0, width, 0, height)
-    else
-        size = width
-    end
+    local size = resolveSize(width, height, UDim2.new(1, 0, 0, height))
 
     local btn = create("TextButton", {
         Name = "MD3_Button",
@@ -1111,16 +1116,27 @@ function MD3:TextField(props)
 end
 
 --------------------------------------------------------------------
--- 5.9 Chip
+-- 5.9 Chip ⭐ 修复了 Width 支持 number / UDim2
 --------------------------------------------------------------------
 function MD3:Chip(props)
     props = props or {}
     local selected = props.Selected == true
+    local chipHeight = props.Height or 32
+
+    -- ⭐ 归一化 Width（支持 number / UDim2 / nil）
+    local chipSize
+    if props.Width == nil then
+        chipSize = UDim2.new(0, 80, 0, chipHeight)
+    elseif typeof(props.Width) == "number" then
+        chipSize = UDim2.new(0, props.Width, 0, chipHeight)
+    else
+        chipSize = props.Width
+    end
 
     local chip = create("TextButton", {
         Name = "MD3_Chip",
         Text = "",
-        Size = props.Width or UDim2.new(0, 80, 0, 32),
+        Size = chipSize,
         BackgroundColor3 = Color3.new(1, 1, 1),
         AutoButtonColor = false,
         BorderSizePixel = 0,
@@ -1140,6 +1156,7 @@ function MD3:Chip(props)
         Font = Enum.Font.GothamMedium,
         TextSize = 13,
         TextTruncate = Enum.TextTruncate.AtEnd,
+        TextXAlignment = Enum.TextXAlignment.Center,
         Parent = chip,
     })
 
@@ -1388,14 +1405,25 @@ function MD3:ListItem(props)
 end
 
 --------------------------------------------------------------------
--- 5.14 ProgressBar
+-- 5.14 ProgressBar ⭐ 修复了 Width 支持 number / UDim2
 --------------------------------------------------------------------
 function MD3:ProgressBar(props)
     props = props or {}
+    local barHeight = props.Height or 4
+
+    -- ⭐ 归一化 Width
+    local barSize
+    if props.Width == nil then
+        barSize = UDim2.new(1, 0, 0, barHeight)
+    elseif typeof(props.Width) == "number" then
+        barSize = UDim2.new(0, props.Width, 0, barHeight)
+    else
+        barSize = props.Width
+    end
 
     local container = create("Frame", {
         Name = "MD3_ProgressBar",
-        Size = props.Width or UDim2.new(1, 0, 0, 4),
+        Size = barSize,
         BackgroundColor3 = Color3.new(1, 1, 1),
         BorderSizePixel = 0,
         ClipsDescendants = true,
@@ -1594,8 +1622,6 @@ end
 --------------------------------------------------------------------
 function MD3:Snackbar(props)
     props = props or {}
-
-    -- ⭐ 捕获外层 self (MD3 实例)
     local windowSelf = self
 
     local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
@@ -1645,7 +1671,6 @@ function MD3:Snackbar(props)
         end
 
         if options.Action then
-            -- ⭐ 用外层 windowSelf 而不是 comp 自身
             actionBtn = windowSelf:Button({
                 Parent = container,
                 Text = options.Action,
@@ -1694,8 +1719,6 @@ end
 --==================================================================
 function MD3:CreateWindow(props)
     props = props or {}
-
-    -- ⭐ 捕获外层 self (MD3 实例)，供 tab._refresh 使用
     local windowSelf = self
 
     local cam = workspace.CurrentCamera
@@ -1709,7 +1732,6 @@ function MD3:CreateWindow(props)
     local sidebarWidth = props.SidebarWidth or 110
     local topBarHeight = props.TopBarHeight or 44
 
-    -- 主窗
     local main = create("Frame", {
         Name = "MD3_Window",
         Size = UDim2.new(0, width, 0, height),
@@ -1723,7 +1745,6 @@ function MD3:CreateWindow(props)
 
     local uiScale = create("UIScale", { Scale = props.Scale or 1, Parent = main })
 
-    -- 拖动栏（用 TextButton 兼容触摸）
     local topBar = create("TextButton", {
         Name = "TopBar",
         Text = "",
@@ -1750,7 +1771,6 @@ function MD3:CreateWindow(props)
         Parent = topBar,
     })
 
-    -- 关闭按钮脱离 topBar，避免误触发拖动
     local closeBtn = create("TextButton", {
         Name = "CloseBtn",
         Text = "✕",
@@ -1785,7 +1805,6 @@ function MD3:CreateWindow(props)
     })
     addCorner(minBtn, 16)
 
-    -- Body
     local body = create("Frame", {
         Name = "Body",
         Size = UDim2.new(1, 0, 1, -topBarHeight),
@@ -1817,7 +1836,6 @@ function MD3:CreateWindow(props)
         Parent = body,
     })
 
-    -- 拖动逻辑
     local dragging, dragStart, startPos = false, nil, nil
 
     local dragStartConn = topBar.InputBegan:Connect(function(input)
@@ -1849,7 +1867,6 @@ function MD3:CreateWindow(props)
         end
     end)
 
-    -- 组件容器
     local comp = newComponent(self, main)
     table.insert(comp._connections, dragStartConn)
     table.insert(comp._connections, dragMoveConn)
@@ -1866,7 +1883,6 @@ function MD3:CreateWindow(props)
     local currentTab = nil
     comp.Tabs = tabs
 
-    -- 主题
     comp:SetThemeFn(function()
         main.BackgroundColor3    = self:Color("SurfaceContainerHigh")
         topBar.BackgroundColor3  = self:Color("SurfaceContainerHigh")
@@ -1877,7 +1893,6 @@ function MD3:CreateWindow(props)
         for _, t in ipairs(tabs) do t._refresh() end
     end)
 
-    -- 关闭 / 最小化
     comp:Connect(closeBtn.MouseButton1Click, function()
         comp:Destroy()
     end)
@@ -1898,7 +1913,6 @@ function MD3:CreateWindow(props)
         end
     end)
 
-    -- AddTab
     function comp:AddTab(tabProps)
         tabProps = tabProps or {}
         local tabTitle = tabProps.Title or ("Tab " .. (#tabs + 1))
@@ -1960,7 +1974,6 @@ function MD3:CreateWindow(props)
             Window  = comp,
         }
 
-        -- ⭐ 关键修复：用 windowSelf 而非 self
         function tab._refresh()
             local active = (currentTab == tab)
             if active then
