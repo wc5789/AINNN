@@ -1,6 +1,11 @@
 --[[
-    MD3UI v1.5.5
+    MD3UI v1.5.6
     Material Design 3 UI Library for Roblox
+
+    v1.5.6 修复:
+      • 侧边栏左下角圆角被遮盖 (加 SidebarCornerMask)
+      • 滚动条贴边/溢出 (ScrollBarInset + 内缩 6px)
+      • addShadow 兼容旧版 Roblox (pcall 包裹, UDim2.Spread)
 
     用法:
         local MD3 = loadstring(game:HttpGet(URL))()
@@ -17,7 +22,7 @@ local RunService        = game:GetService("RunService")
 
 local MD3 = {}
 MD3.__index = MD3
-MD3.Version = "1.5.5"
+MD3.Version = "1.5.6"
 
 --==================================================================
 -- 1. 设计 Token
@@ -230,21 +235,22 @@ local function addStateLayer(parent, color, radius)
     return layer
 end
 
+-- ⭐ v1.5.6: UIShadow 兼容处理
 local function addShadow(inst, level)
     local e = Elevation["Level" .. tostring(level)]
     if not e then return nil end
 
-    -- UIShadow 在旧版 Roblox 里不存在，做兼容
     local ok, shadow = pcall(function()
         local s = Instance.new("UIShadow")
         s.BlurRadius = UDim.new(0, e.blur)
         s.Offset = UDim2.new(0, 0, 0, e.offset)
-        s.Spread = UDim2.new(0, e.spread, 0, e.spread)   -- ✅ UDim2
+        s.Spread = UDim2.new(0, e.spread, 0, e.spread)   -- UDim2 (correct)
         s.Transparency = e.transparency
         s.Color = Color3.new(0, 0, 0)
         s.Parent = inst
         return s
     end)
+
     if not ok then return nil end
     return shadow
 end
@@ -637,7 +643,7 @@ function MD3:IconButton(props)
 end
 
 --------------------------------------------------------------------
--- 5.3 FAB (16dp 圆角)
+-- 5.3 FAB
 --------------------------------------------------------------------
 function MD3:FAB(props)
     props = props or {}
@@ -711,7 +717,7 @@ function MD3:FAB(props)
 end
 
 --------------------------------------------------------------------
--- 5.4 ExtendedFAB (新增)
+-- 5.4 ExtendedFAB
 --------------------------------------------------------------------
 function MD3:ExtendedFAB(props)
     props = props or {}
@@ -1118,7 +1124,7 @@ function MD3:Radio(props)
 end
 
 --------------------------------------------------------------------
--- 5.8 Slider (MD3 规范)
+-- 5.8 Slider
 --------------------------------------------------------------------
 function MD3:Slider(props)
     props = props or {}
@@ -1498,7 +1504,7 @@ function MD3:TextField(props)
 end
 
 --------------------------------------------------------------------
--- 5.10 SearchBar (新增)
+-- 5.10 SearchBar
 --------------------------------------------------------------------
 function MD3:SearchBar(props)
     props = props or {}
@@ -1658,11 +1664,11 @@ function MD3:Chip(props)
 end
 
 --------------------------------------------------------------------
--- 5.12 Badge (新增)
+-- 5.12 Badge
 --------------------------------------------------------------------
 function MD3:Badge(props)
     props = props or {}
-    local variant = props.Variant or "Small"  -- Small / Large
+    local variant = props.Variant or "Small"
     local count   = props.Count or 0
     local max     = props.Max or 99
 
@@ -1717,12 +1723,12 @@ function MD3:Badge(props)
 end
 
 --------------------------------------------------------------------
--- 5.13 Tooltip (新增)
+-- 5.13 Tooltip
 --------------------------------------------------------------------
 function MD3:Tooltip(props)
     props = props or {}
     local text    = props.Text or "Tooltip"
-    local variant = props.Variant or "Plain"  -- Plain / Rich
+    local variant = props.Variant or "Plain"
     local target  = props.Target
     if not target then
         warn("[MD3UI] Tooltip 需要 Target 参数")
@@ -1771,7 +1777,6 @@ function MD3:Tooltip(props)
         local x = targetPos.X + targetSize.X / 2 - tp.X / 2
         local y = targetPos.Y - tp.Y - 8
 
-        -- 超出屏幕上方时放下方
         if y < 0 then
             y = targetPos.Y + targetSize.Y + 8
         end
@@ -2077,7 +2082,7 @@ function MD3:ProgressBar(props)
 end
 
 --------------------------------------------------------------------
--- 5.19 LoadingIndicator (新增)
+-- 5.19 LoadingIndicator
 --------------------------------------------------------------------
 function MD3:LoadingIndicator(props)
     props = props or {}
@@ -2094,7 +2099,6 @@ function MD3:LoadingIndicator(props)
         Parent = props.Parent,
     })
 
-    -- 底圈
     local track = create("Frame", {
         Name = "Track",
         Size = UDim2.new(1, 0, 1, 0),
@@ -2106,8 +2110,6 @@ function MD3:LoadingIndicator(props)
     addCorner(track, UDim.new(0.5, 0))
     local trackStroke = addStroke(track, Color3.new(1, 1, 1), strokeWidth)
 
-    -- 旋转圆弧 (用 ImageLabel 旋转，或者用两个半圆拼合)
-    -- 用 UIGradient + Frame 做弧线效果：这里用简化方案 - 旋转的实心圆点
     local spinner = create("Frame", {
         Name = "Spinner",
         Size = UDim2.new(1, 0, 1, 0),
@@ -2115,10 +2117,9 @@ function MD3:LoadingIndicator(props)
         Parent = container,
     })
 
-    -- 弧线用一根 4dp 宽的条，两端圆角，然后旋转
     local arc = create("Frame", {
         Name = "Arc",
-        Size = UDim2.new(0, size, 0, strokeWidth),
+        Size = UDim2.new(0.5, 0, 0, strokeWidth),
         Position = UDim2.new(0, 0, 0, size/2 - strokeWidth/2),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundColor3 = Color3.new(1, 1, 1),
@@ -2127,11 +2128,8 @@ function MD3:LoadingIndicator(props)
         Parent = spinner,
     })
     addCorner(arc, strokeWidth / 2)
-    -- 只显示一半 (用 ClipsDescendants + mask 太复杂，直接接受整条)
-    arc.Size = UDim2.new(0.5, 0, 0, strokeWidth)
 
     local comp = newComponent(self, container)
-    local rotationConn = nil
 
     comp:SetThemeFn(function()
         trackStroke.Color = self:Color("SurfaceContainerHighest")
@@ -2139,9 +2137,8 @@ function MD3:LoadingIndicator(props)
         arc.BackgroundColor3 = self:Color("Primary")
     end)
 
-    -- 旋转动画
     local rotation = 0
-    rotationConn = RunService.RenderStepped:Connect(function(dt)
+    local rotationConn = RunService.RenderStepped:Connect(function(dt)
         if comp._destroyed then return end
         rotation = (rotation + dt * 360) % 360
         spinner.Rotation = rotation
@@ -2293,7 +2290,7 @@ function MD3:Dialog(props)
 end
 
 --------------------------------------------------------------------
--- 5.21 Snackbar (4dp 圆角)
+-- 5.21 Snackbar
 --------------------------------------------------------------------
 function MD3:Snackbar(props)
     props = props or {}
@@ -2525,7 +2522,7 @@ function MD3:SegmentedButton(props)
 end
 
 --------------------------------------------------------------------
--- 5.23 NavigationRail (新增)
+-- 5.23 NavigationRail
 --------------------------------------------------------------------
 function MD3:NavigationRail(props)
     props = props or {}
@@ -2549,7 +2546,6 @@ function MD3:NavigationRail(props)
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
     })
 
-    -- 顶部 FAB 位 (可选)
     if props.FAB then
         local fabContainer = create("Frame", {
             Size = UDim2.new(1, 0, 0, 72),
@@ -2585,7 +2581,6 @@ function MD3:NavigationRail(props)
             Parent = rail,
         })
 
-        -- 指示器 (药丸形)
         local indicator = create("Frame", {
             Name = "Indicator",
             Size = UDim2.new(0, 56, 0, 32),
@@ -2733,6 +2728,7 @@ function MD3:BottomSheet(props)
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         ScrollingDirection = Enum.ScrollingDirection.Y,
+        VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
         ScrollBarThickness = 3,
         ScrollBarImageColor3 = Color3.new(1, 1, 1),
         ScrollBarImageTransparency = 0.5,
@@ -2827,7 +2823,7 @@ function MD3:BottomSheet(props)
 end
 
 --==================================================================
--- 6. 侧边栏窗口
+-- 6. 侧边栏窗口 (v1.5.6 修复左下角圆角 + 滚动条内缩)
 --==================================================================
 function MD3:CreateWindow(props)
     props = props or {}
@@ -2843,6 +2839,7 @@ function MD3:CreateWindow(props)
 
     local sidebarWidth = props.SidebarWidth or 120
     local topBarHeight = props.TopBarHeight or 48
+    local cornerRadius = props.CornerRadius or 20
 
     local main = create("Frame", {
         Name = "MD3_Window",
@@ -2853,11 +2850,12 @@ function MD3:CreateWindow(props)
         ClipsDescendants = true,
         Parent = self.ScreenGui,
     })
-    addCorner(main, 20)
+    addCorner(main, cornerRadius)
     addShadow(main, 4)
 
     local uiScale = create("UIScale", { Scale = props.Scale or 1, Parent = main })
 
+    -- 标题栏
     local topBar = create("TextButton", {
         Name = "TopBar",
         Text = "",
@@ -2883,6 +2881,7 @@ function MD3:CreateWindow(props)
     })
     applyFont(titleLabel, "TitleMedium")
 
+    -- 关闭按钮
     local closeBtn = create("TextButton", {
         Name = "CloseBtn", Text = "✕",
         Size = UDim2.new(0, 32, 0, 32),
@@ -2911,6 +2910,7 @@ function MD3:CreateWindow(props)
     addCorner(minBtn, 16)
     local minStateLayer = addStateLayer(minBtn, Color3.new(1, 1, 1), 16)
 
+    -- 主体
     local body = create("Frame", {
         Name = "Body",
         Size = UDim2.new(1, 0, 1, -topBarHeight),
@@ -2920,6 +2920,7 @@ function MD3:CreateWindow(props)
         Parent = main,
     })
 
+    -- 侧边栏
     local sidebar = create("Frame", {
         Name = "Sidebar",
         Size = UDim2.new(0, sidebarWidth, 1, 0),
@@ -2934,6 +2935,19 @@ function MD3:CreateWindow(props)
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
+    -- ⭐ v1.5.6: 左下角圆角遮罩，让 sidebar 不覆盖 main 的左下圆角
+    local sidebarCornerMask = create("Frame", {
+        Name = "SidebarCornerMask",
+        Size = UDim2.new(0, cornerRadius, 0, cornerRadius),
+        Position = UDim2.new(0, 0, 1, -cornerRadius),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+        ZIndex = 10,
+        Parent = sidebar,
+    })
+    addCorner(sidebarCornerMask, cornerRadius)
+
+    -- 内容区
     local contentArea = create("Frame", {
         Name = "ContentArea",
         Size = UDim2.new(1, -sidebarWidth, 1, 0),
@@ -2994,6 +3008,8 @@ function MD3:CreateWindow(props)
         main.BackgroundColor3    = self:Color("SurfaceContainerHigh")
         topBar.BackgroundColor3  = self:Color("SurfaceContainerHigh")
         sidebar.BackgroundColor3 = self:Color("SurfaceContainerLow")
+        -- ⭐ 遮罩颜色 = main 颜色（让它视觉上"属于"main）
+        sidebarCornerMask.BackgroundColor3 = self:Color("SurfaceContainerHigh")
         titleLabel.TextColor3    = self:Color("OnSurface")
         closeBtn.TextColor3      = self:Color("OnSurfaceVariant")
         minBtn.TextColor3        = self:Color("OnSurfaceVariant")
@@ -3067,14 +3083,16 @@ function MD3:CreateWindow(props)
 
         local stateLayer = addStateLayer(btn, Color3.new(1, 1, 1), 20)
 
+        -- ⭐ v1.5.6: 滚动条内缩 + ScrollBarInset
         local page = create("ScrollingFrame", {
             Name = "Page_" .. tabTitle,
-            Size = UDim2.new(1, 0, 1, 0),
+            Size = UDim2.new(1, -6, 1, 0),  -- 右侧缩 6px
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
+            VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
             ScrollBarThickness = 3,
             ScrollBarImageColor3 = Color3.new(1, 1, 1),
             ScrollBarImageTransparency = 0.5,
