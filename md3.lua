@@ -233,13 +233,19 @@ end
 local function addShadow(inst, level)
     local e = Elevation["Level" .. tostring(level)]
     if not e then return nil end
-    local shadow = Instance.new("UIShadow")
-    shadow.BlurRadius = UDim.new(0, e.blur)
-    shadow.Offset = UDim2.new(0, 0, 0, e.offset)
-    shadow.Spread = UDim.new(0, e.spread, 0, e.spread)
-    shadow.Transparency = e.transparency
-    shadow.Color = Color3.new(0, 0, 0)
-    shadow.Parent = inst
+
+    -- UIShadow 在旧版 Roblox 里不存在，做兼容
+    local ok, shadow = pcall(function()
+        local s = Instance.new("UIShadow")
+        s.BlurRadius = UDim.new(0, e.blur)
+        s.Offset = UDim2.new(0, 0, 0, e.offset)
+        s.Spread = UDim2.new(0, e.spread, 0, e.spread)   -- ✅ UDim2
+        s.Transparency = e.transparency
+        s.Color = Color3.new(0, 0, 0)
+        s.Parent = inst
+        return s
+    end)
+    if not ok then return nil end
     return shadow
 end
 
