@@ -1,18 +1,6 @@
 --[[
-    MD3UI v1.5.0
+    MD3UI v1.5.5
     Material Design 3 UI Library for Roblox
-
-    v1.5.0 主要改动:
-      • Slider 按 MD3 2023.12 规范完全重写
-        - 4dp 竖条手柄，按下时宽度收缩
-        - 激活/未激活轨道之间 6dp 间隙
-        - 停止指示器
-        - 值指示器（圆角矩形气泡）
-      • 阴影系统 (UIShadow 六层 elevation)
-      • 状态层修正 (Hover 8% / Focus 10% / Pressed 10% / Dragged 16%)
-      • 圆角修正 (FAB 16dp, Snackbar 4dp)
-      • 新增组件: SegmentedButton, BottomSheet
-      • 排版修正
 
     用法:
         local MD3 = loadstring(game:HttpGet(URL))()
@@ -25,15 +13,15 @@
 local UserInputService = game:GetService("UserInputService")
 local TweenService      = game:GetService("TweenService")
 local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
 
 local MD3 = {}
 MD3.__index = MD3
-MD3.Version = "1.5.0"
+MD3.Version = "1.5.5"
 
 --==================================================================
 -- 1. 设计 Token
 --==================================================================
-
 local function hex(s) return Color3.fromHex(s) end
 
 MD3.Theme = {
@@ -81,7 +69,7 @@ MD3.Theme = {
     },
 }
 
--- 排版
+-- 排版 (MD3 Type Scale)
 local Typo = {
     DisplayLarge   = { size = 57, weight = "Regular" },
     DisplayMedium  = { size = 45, weight = "Regular" },
@@ -103,18 +91,35 @@ local Typo = {
 -- 间距
 local Space = { xs = 4, sm = 8, md = 12, lg = 16, xl = 24, xxl = 32 }
 
--- 动画时长
-local Dur = { short = 0.15, medium = 0.30, long = 0.45 }
-
--- 状态层不透明度 (MD3 规范精确值)
-local StateOpacity = {
-    Hover   = 0.92,  -- 8% 叠加
-    Focus   = 0.90,  -- 10%
-    Pressed = 0.90,  -- 10%
-    Dragged = 0.84,  -- 16%
+-- 动画时长 (MD3 四级)
+local Dur = {
+    micro  = 0.08,
+    short  = 0.15,
+    medium = 0.25,
+    long   = 0.40,
 }
 
--- 阴影 (MD3 Elevation Tokens)
+-- 动画曲线 (MD3 近似映射)
+local Curve = {
+    emphasized      = { style = Enum.EasingStyle.Quint,  dir = Enum.EasingDirection.Out },
+    emphasizedDecel = { style = Enum.EasingStyle.Quart,  dir = Enum.EasingDirection.Out },
+    emphasizedAccel = { style = Enum.EasingStyle.Quart,  dir = Enum.EasingDirection.In  },
+    standard        = { style = Enum.EasingStyle.Quad,   dir = Enum.EasingDirection.InOut },
+    standardDecel   = { style = Enum.EasingStyle.Cubic,  dir = Enum.EasingDirection.Out },
+    standardAccel   = { style = Enum.EasingStyle.Cubic,  dir = Enum.EasingDirection.In  },
+    spring          = { style = Enum.EasingStyle.Back,   dir = Enum.EasingDirection.Out },
+    linear          = { style = Enum.EasingStyle.Linear, dir = Enum.EasingDirection.Out },
+}
+
+-- 状态层不透明度
+local StateOpacity = {
+    Hover   = 0.92,
+    Focus   = 0.90,
+    Pressed = 0.90,
+    Dragged = 0.84,
+}
+
+-- 阴影 (Elevation)
 local Elevation = {
     Level1 = { blur = 6,  offset = 2, spread = 0, transparency = 0.85 },
     Level2 = { blur = 8,  offset = 3, spread = 0, transparency = 0.82 },
@@ -180,11 +185,12 @@ local function addList(inst, opts)
     return l
 end
 
-local function tween(inst, props, time, style, dir)
+local function tween(inst, props, duration, curveName)
+    local c = Curve[curveName or "emphasized"]
     local info = TweenInfo.new(
-        time  or Dur.short,
-        style or Enum.EasingStyle.Quint,
-        dir   or Enum.EasingDirection.Out
+        duration or Dur.short,
+        c.style,
+        c.dir
     )
     local t = TweenService:Create(inst, info, props)
     t:Play()
@@ -210,7 +216,6 @@ local function resolveSize(w, h, default)
     return w
 end
 
--- 状态层
 local function addStateLayer(parent, color, radius)
     local layer = create("Frame", {
         Name = "StateLayer",
@@ -225,21 +230,19 @@ local function addStateLayer(parent, color, radius)
     return layer
 end
 
--- 阴影
 local function addShadow(inst, level)
     local e = Elevation["Level" .. tostring(level)]
     if not e then return nil end
     local shadow = Instance.new("UIShadow")
     shadow.BlurRadius = UDim.new(0, e.blur)
     shadow.Offset = UDim2.new(0, 0, 0, e.offset)
-    shadow.Spread = UDim2.new(0, e.spread, 0, e.spread)
+    shadow.Spread = UDim.new(0, e.spread, 0, e.spread)
     shadow.Transparency = e.transparency
     shadow.Color = Color3.new(0, 0, 0)
     shadow.Parent = inst
     return shadow
 end
 
--- 涟漪
 local function playRipple(parent, relX, relY, color)
     if not parent or not parent.Parent then return end
     local maxDim = math.max(parent.AbsoluteSize.X, parent.AbsoluteSize.Y)
@@ -258,10 +261,10 @@ local function playRipple(parent, relX, relY, color)
     })
     addCorner(ripple, UDim.new(0.5, 0))
 
-    local target = maxDim * 2
+    local target = maxDim * 2.2
     local t = TweenService:Create(
         ripple,
-        TweenInfo.new(0.6, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+        TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
         { Size = UDim2.new(0, target, 0, target), BackgroundTransparency = 1 }
     )
     t:Play()
@@ -428,8 +431,8 @@ function MD3:Button(props)
 
     local label = create("TextLabel", {
         Text = props.Text or "Button",
-        Size = UDim2.new(1, -48, 1, 0),
-        Position = UDim2.new(0, 24, 0, 0),
+        Size = UDim2.new(1, -Space.xl * 2, 1, 0),
+        Position = UDim2.new(0, Space.xl, 0, 0),
         BackgroundTransparency = 1,
         TextColor3 = Color3.new(1, 1, 1),
         TextXAlignment = Enum.TextXAlignment.Center,
@@ -444,7 +447,6 @@ function MD3:Button(props)
         stroke = addStroke(btn, Color3.new(1, 1, 1), 1)
     end
 
-    -- Elevated 变体加阴影
     if variant == "Elevated" then
         addShadow(btn, 1)
     end
@@ -490,22 +492,22 @@ function MD3:Button(props)
     comp:Connect(btn.MouseEnter, function()
         if disabled then return end
         isHovering = true
-        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(btn.MouseLeave, function()
         if disabled then return end
         isHovering = false
-        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
     comp:Connect(btn.MouseButton1Down, function()
         if disabled then return end
-        tween(stateLayer, { BackgroundTransparency = StateOpacity.Pressed }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Pressed }, Dur.micro, "standard")
     end)
     comp:Connect(btn.MouseButton1Up, function()
         if disabled then return end
         tween(stateLayer, {
             BackgroundTransparency = isHovering and StateOpacity.Hover or 1
-        }, Dur.short)
+        }, Dur.micro, "standard")
     end)
 
     comp:Connect(btn.InputBegan, function(input)
@@ -605,10 +607,10 @@ function MD3:IconButton(props)
     comp:SetThemeFn(apply)
 
     comp:Connect(btn.MouseEnter, function()
-        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(btn.MouseLeave, function()
-        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
 
     comp:Connect(btn.InputBegan, function(input)
@@ -629,7 +631,7 @@ function MD3:IconButton(props)
 end
 
 --------------------------------------------------------------------
--- 5.3 FAB (圆角 16dp，不是 Full)
+-- 5.3 FAB (16dp 圆角)
 --------------------------------------------------------------------
 function MD3:FAB(props)
     props = props or {}
@@ -648,7 +650,6 @@ function MD3:FAB(props)
         LayoutOrder = props.LayoutOrder or self:_nextOrder(),
         Parent = props.Parent,
     })
-    -- MD3 FAB 圆角 = 16dp
     addCorner(btn, 16)
 
     local img = create("ImageLabel", {
@@ -660,9 +661,7 @@ function MD3:FAB(props)
         Parent = btn,
     })
 
-    -- FAB 有 elevation level 3
     addShadow(btn, 3)
-
     local stateLayer = addStateLayer(btn, Color3.new(1, 1, 1), 16)
     local comp = newComponent(self, btn)
 
@@ -683,10 +682,10 @@ function MD3:FAB(props)
     end)
 
     comp:Connect(btn.MouseEnter, function()
-        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(btn.MouseLeave, function()
-        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
 
     comp:Connect(btn.InputBegan, function(input)
@@ -706,7 +705,98 @@ function MD3:FAB(props)
 end
 
 --------------------------------------------------------------------
--- 5.4 Switch
+-- 5.4 ExtendedFAB (新增)
+--------------------------------------------------------------------
+function MD3:ExtendedFAB(props)
+    props = props or {}
+    local variant = props.Variant or "Primary"
+    local height  = props.Height or 56
+    local width   = props.Width  or 140
+
+    local btn = create("TextButton", {
+        Name = "MD3_ExtendedFAB",
+        Text = "",
+        Size = UDim2.new(0, width, 0, height),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        AutoLocalize = false,
+        LayoutOrder = props.LayoutOrder or self:_nextOrder(),
+        Parent = props.Parent,
+    })
+    addCorner(btn, 16)
+    addShadow(btn, 3)
+
+    local img = create("ImageLabel", {
+        Name = "Icon",
+        Image = props.Icon or "rbxassetid://0",
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(0, Space.lg, 0.5, -12),
+        BackgroundTransparency = 1,
+        Parent = btn,
+    })
+
+    local label = create("TextLabel", {
+        Name = "Label",
+        Text = props.Text or "Extended",
+        Size = UDim2.new(1, -Space.lg - 24 - Space.sm, 1, 0),
+        Position = UDim2.new(0, Space.lg + 24 + Space.sm, 0, 0),
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Parent = btn,
+    })
+    applyFont(label, "LabelLarge")
+
+    local stateLayer = addStateLayer(btn, Color3.new(1, 1, 1), 16)
+    local comp = newComponent(self, btn)
+
+    comp:SetThemeFn(function()
+        local bg, fg
+        if variant == "Primary" then
+            bg, fg = "PrimaryContainer", "OnPrimaryContainer"
+        elseif variant == "Secondary" then
+            bg, fg = "SecondaryContainer", "OnSecondaryContainer"
+        elseif variant == "Tertiary" then
+            bg, fg = "TertiaryContainer", "OnTertiaryContainer"
+        else
+            bg, fg = "SurfaceContainerHigh", "Primary"
+        end
+        btn.BackgroundColor3 = self:Color(bg)
+        img.ImageColor3 = self:Color(fg)
+        label.TextColor3 = self:Color(fg)
+        stateLayer.BackgroundColor3 = self:Color(fg)
+    end)
+
+    comp:Connect(btn.MouseEnter, function()
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
+    end)
+    comp:Connect(btn.MouseLeave, function()
+        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
+    end)
+
+    comp:Connect(btn.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            local relX = input.Position.X - btn.AbsolutePosition.X
+            local relY = input.Position.Y - btn.AbsolutePosition.Y
+            playRipple(btn, relX, relY, label.TextColor3)
+        end
+    end)
+
+    if props.OnClick then
+        comp:Connect(btn.MouseButton1Click, props.OnClick)
+    end
+
+    function comp:SetText(t) label.Text = t end
+    function comp:SetIcon(id) img.Image = id end
+
+    return comp
+end
+
+--------------------------------------------------------------------
+-- 5.5 Switch
 --------------------------------------------------------------------
 function MD3:Switch(props)
     props = props or {}
@@ -759,8 +849,8 @@ function MD3:Switch(props)
 
     local function apply(animate)
         local on = state
-        local trackColor   = on and self:Color("Primary") or self:Color("SurfaceContainerHighest")
-        local thumbColor   = on and self:Color("OnPrimary") or self:Color("Outline")
+        local trackColor       = on and self:Color("Primary") or self:Color("SurfaceContainerHighest")
+        local thumbColor       = on and self:Color("OnPrimary") or self:Color("Outline")
         local trackStrokeColor = self:Color("Outline")
         local trackStrokeTrans = on and 1 or 0
 
@@ -774,12 +864,12 @@ function MD3:Switch(props)
         end
 
         if animate then
-            tween(track, { BackgroundColor3 = trackColor }, Dur.short)
-            tween(trackStroke, { Transparency = trackStrokeTrans }, Dur.short)
+            tween(track, { BackgroundColor3 = trackColor }, Dur.short, "standard")
+            tween(trackStroke, { Transparency = trackStrokeTrans }, Dur.short, "standard")
             tween(thumb, {
                 Position = goalPos, Size = goalSize,
                 BackgroundColor3 = thumbColor,
-            }, Dur.medium, Enum.EasingStyle.Back)
+            }, Dur.short, "spring")
         else
             track.BackgroundColor3 = trackColor
             trackStroke.Transparency = trackStrokeTrans
@@ -811,7 +901,7 @@ function MD3:Switch(props)
 end
 
 --------------------------------------------------------------------
--- 5.5 Checkbox
+-- 5.6 Checkbox
 --------------------------------------------------------------------
 function MD3:Checkbox(props)
     props = props or {}
@@ -902,7 +992,7 @@ function MD3:Checkbox(props)
         tween(box, {
             BackgroundColor3 = state and self:Color("Primary") or self:Color("Surface"),
             BackgroundTransparency = state and 0 or 1,
-        }, Dur.medium, Enum.EasingStyle.Back)
+        }, Dur.short, "spring")
 
         boxStroke.Color = state and self:Color("Primary") or self:Color("OnSurfaceVariant")
         boxStroke.Transparency = state and 1 or 0
@@ -922,7 +1012,7 @@ function MD3:Checkbox(props)
 end
 
 --------------------------------------------------------------------
--- 5.6 Radio
+-- 5.7 Radio
 --------------------------------------------------------------------
 function MD3:Radio(props)
     props = props or {}
@@ -979,8 +1069,8 @@ function MD3:Radio(props)
         local goalSize = state and UDim2.new(0, 10, 0, 10) or UDim2.new(0, 0, 0, 0)
 
         if animate then
-            tween(ringStroke, { Color = ringCol }, Dur.short)
-            tween(dot, { Size = goalSize, BackgroundColor3 = dotCol }, Dur.medium, Enum.EasingStyle.Back)
+            tween(ringStroke, { Color = ringCol }, Dur.short, "standard")
+            tween(dot, { Size = goalSize, BackgroundColor3 = dotCol }, Dur.short, "spring")
         else
             ringStroke.Color = ringCol
             dot.Size = goalSize
@@ -1022,7 +1112,7 @@ function MD3:Radio(props)
 end
 
 --------------------------------------------------------------------
--- 5.7 Slider (⭐ v1.5 完全重写，严格按 MD3 2023.12 规范)
+-- 5.8 Slider (MD3 规范)
 --------------------------------------------------------------------
 function MD3:Slider(props)
     props = props or {}
@@ -1031,14 +1121,13 @@ function MD3:Slider(props)
     local value = props.Default or min
     if max <= min then max = min + 1 end
 
-    -- 尺寸常量 (按 MD3 规范)
-    local TRACK_HEIGHT   = 16      -- 轨道视觉高度 16dp
-    local TRACK_THICK    = 4       -- 轨道线宽 4dp
-    local THUMB_W        = 4       -- 手柄宽 4dp (静止)
-    local THUMB_H        = 44      -- 手柄高 44dp
-    local THUMB_W_PRESS  = 2       -- 按下时手柄宽收缩到 2dp
-    local TRACK_GAP      = 6       -- 激活/未激活轨道之间的间隙 6dp
-    local STOP_SIZE      = 4       -- 停止指示器 4dp
+    local TRACK_HEIGHT   = 16
+    local TRACK_THICK    = 4
+    local THUMB_W        = 4
+    local THUMB_H        = 44
+    local THUMB_W_PRESS  = 2
+    local TRACK_GAP      = 6
+    local STOP_SIZE      = 4
 
     local container = create("Frame", {
         Name = "MD3_Slider",
@@ -1050,7 +1139,6 @@ function MD3:Slider(props)
         Parent = props.Parent,
     })
 
-    -- 顶部标签行
     local label = create("TextLabel", {
         Text = props.Text or "Slider",
         Size = UDim2.new(1, -60, 0, 20),
@@ -1070,10 +1158,8 @@ function MD3:Slider(props)
     })
     applyFont(valueLabel, "LabelLarge")
 
-    -- 轨道区域 (y = 44)
     local TRACK_Y = 44
 
-    -- 轨道容器：承载轨道和手柄，高度 = TRACK_HEIGHT
     local trackArea = create("Frame", {
         Name = "TrackArea",
         Size = UDim2.new(1, -THUMB_W, 0, TRACK_HEIGHT),
@@ -1082,7 +1168,6 @@ function MD3:Slider(props)
         Parent = container,
     })
 
-    -- 未激活轨道 (底层，全宽)
     local inactiveTrack = create("Frame", {
         Name = "InactiveTrack",
         Size = UDim2.new(1, 0, 0, TRACK_THICK),
@@ -1094,7 +1179,6 @@ function MD3:Slider(props)
     })
     addCorner(inactiveTrack, UDim.new(0.5, 0))
 
-    -- 停止指示器 (最右端)
     local stopIndicator = create("Frame", {
         Name = "StopIndicator",
         Size = UDim2.new(0, STOP_SIZE, 0, STOP_SIZE),
@@ -1106,7 +1190,6 @@ function MD3:Slider(props)
     })
     addCorner(stopIndicator, UDim.new(0.5, 0))
 
-    -- 激活轨道 (覆盖层)
     local activeTrack = create("Frame", {
         Name = "ActiveTrack",
         Size = UDim2.new(0, 0, 0, TRACK_THICK),
@@ -1118,7 +1201,6 @@ function MD3:Slider(props)
     })
     addCorner(activeTrack, UDim.new(0.5, 0))
 
-    -- 手柄容器 (居中在轨道上)
     local thumb = create("Frame", {
         Name = "Thumb",
         Size = UDim2.new(0, THUMB_W, 0, THUMB_H),
@@ -1131,7 +1213,6 @@ function MD3:Slider(props)
     })
     addCorner(thumb, UDim.new(0.5, 0))
 
-    -- 状态圈 (手柄背后的圆形状态层)
     local stateRing = create("Frame", {
         Name = "StateRing",
         Size = UDim2.new(0, 40, 0, 40),
@@ -1145,7 +1226,6 @@ function MD3:Slider(props)
     })
     addCorner(stateRing, UDim.new(0.5, 0))
 
-    -- 值指示器 (按下时出现的气泡)
     local valueBubble = create("Frame", {
         Name = "ValueIndicator",
         Size = UDim2.new(0, 0, 0, 28),
@@ -1170,7 +1250,6 @@ function MD3:Slider(props)
     })
     applyFont(bubbleLabel, "LabelMedium")
 
-    -- 输入热区 (覆盖整个轨道区域，含手柄上下范围)
     local inputArea = create("TextButton", {
         Text = "",
         Size = UDim2.new(1, THUMB_W * 2, 0, 48),
@@ -1200,33 +1279,25 @@ function MD3:Slider(props)
     local isHovering = false
     local currentRelX = (value - min) / (max - min)
 
-    -- 精确更新：算间隙
     local function updateVisuals(relX)
         currentRelX = relX
 
         local trackW = trackArea.AbsoluteSize.X
-        if trackW <= 1 then
-            -- 还没渲染完，先用比例
-            trackW = 300
-        end
+        if trackW <= 1 then trackW = 300 end
 
-        -- 手柄位置
         local thumbX = relX * trackW
         thumb.Position = UDim2.new(0, thumbX, 0.5, 0)
         stateRing.Position = UDim2.new(0, thumbX, 0.5, 0)
         valueBubble.Position = UDim2.new(0, thumbX, 0, -8)
 
-        -- 激活轨道：从 0 到手柄位置 - 间隙
         local activeW = math.max(0, thumbX - TRACK_GAP)
         activeTrack.Size = UDim2.new(0, activeW, 0, TRACK_THICK)
 
-        -- 未激活轨道：从手柄位置 + 间隙 到 末端
         local inactiveStart = math.min(trackW, thumbX + TRACK_GAP)
         local inactiveW = math.max(0, trackW - inactiveStart)
         inactiveTrack.Position = UDim2.new(0, inactiveStart, 0.5, -TRACK_THICK / 2)
         inactiveTrack.Size = UDim2.new(0, inactiveW, 0, TRACK_THICK)
 
-        -- 停止指示器位置 (在未激活轨道末端)
         stopIndicator.Position = UDim2.new(0, trackW + TRACK_GAP, 0.5, -STOP_SIZE / 2)
 
         valueLabel.Text = tostring(math.floor(value + 0.5))
@@ -1244,46 +1315,40 @@ function MD3:Slider(props)
         if not silent and props.OnChanged then props.OnChanged(value) end
     end
 
-    -- 初始渲染
     task.defer(function()
         updateVisuals((value - min) / (max - min))
     end)
 
-    -- 渲染后尺寸变化时重新计算
     comp:Connect(trackArea:GetPropertyChangedSignal("AbsoluteSize"), function()
         updateVisuals(currentRelX)
     end)
 
-    -- 状态圈控制
     local function setStateRing(trans, size)
         tween(stateRing, {
             BackgroundTransparency = trans,
             Size = size or UDim2.new(0, 40, 0, 40),
-        }, Dur.short)
+        }, Dur.micro, "standard")
     end
 
-    -- 手柄宽度控制
     local function setThumbWidth(w)
         tween(thumb, {
             Size = UDim2.new(0, w, 0, THUMB_H),
-        }, Dur.short, Enum.EasingStyle.Quart)
+        }, Dur.short, "emphasized")
     end
 
-    -- 值指示器显示/隐藏
     local function showBubble(show)
         valueBubble.Visible = true
         if show then
             valueBubble.Size = UDim2.new(0, 0, 0, 28)
-            tween(valueBubble, { Size = UDim2.new(0, 48, 0, 28) }, Dur.medium, Enum.EasingStyle.Back)
+            tween(valueBubble, { Size = UDim2.new(0, 48, 0, 28) }, Dur.short, "spring")
         else
-            local t = tween(valueBubble, { Size = UDim2.new(0, 0, 0, 28) }, Dur.short)
+            local t = tween(valueBubble, { Size = UDim2.new(0, 0, 0, 28) }, Dur.short, "standard")
             t.Completed:Connect(function()
                 valueBubble.Visible = false
             end)
         end
     end
 
-    -- 悬停
     comp:Connect(inputArea.MouseEnter, function()
         isHovering = true
         if not dragging then setStateRing(StateOpacity.Hover) end
@@ -1293,20 +1358,13 @@ function MD3:Slider(props)
         if not dragging then setStateRing(1) end
     end)
 
-    -- 按下
     comp:Connect(inputArea.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-
-            -- 按下的三重反馈:
-            -- 1. 状态圈放大 + 加深
             setStateRing(StateOpacity.Dragged, UDim2.new(0, 44, 0, 44))
-            -- 2. 手柄宽度收缩
             setThumbWidth(THUMB_W_PRESS)
-            -- 3. 显示值指示器
             showBubble(true)
-
             updateFromAbsX(input.Position.X)
         end
     end)
@@ -1324,8 +1382,6 @@ function MD3:Slider(props)
         or input.UserInputType == Enum.UserInputType.Touch then
             if not dragging then return end
             dragging = false
-
-            -- 松手恢复
             setStateRing(isHovering and StateOpacity.Hover or 1, UDim2.new(0, 40, 0, 40))
             setThumbWidth(THUMB_W)
             showBubble(false)
@@ -1342,7 +1398,7 @@ function MD3:Slider(props)
 end
 
 --------------------------------------------------------------------
--- 5.8 TextField
+-- 5.9 TextField
 --------------------------------------------------------------------
 function MD3:TextField(props)
     props = props or {}
@@ -1385,8 +1441,8 @@ function MD3:TextField(props)
 
     local label = create("TextLabel", {
         Text = props.Label or "Label",
-        Size = UDim2.new(1, -32, 0, 16),
-        Position = UDim2.new(0, 16, 0, 6),
+        Size = UDim2.new(1, -Space.lg * 2, 0, 16),
+        Position = UDim2.new(0, Space.lg, 0, 6),
         BackgroundTransparency = 1,
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = container,
@@ -1396,8 +1452,8 @@ function MD3:TextField(props)
     local box = create("TextBox", {
         Text = props.Default or "",
         PlaceholderText = props.Placeholder or "",
-        Size = UDim2.new(1, -32, 0, 24),
-        Position = UDim2.new(0, 16, 0, 24),
+        Size = UDim2.new(1, -Space.lg * 2, 0, 24),
+        Position = UDim2.new(0, Space.lg, 0, 24),
         BackgroundTransparency = 1,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
@@ -1419,12 +1475,12 @@ function MD3:TextField(props)
     end)
 
     comp:Connect(box.Focused, function()
-        tween(focusLine, { Size = UDim2.new(1, 0, 0, 2) }, Dur.medium)
+        tween(focusLine, { Size = UDim2.new(1, 0, 0, 2) }, Dur.short, "emphasized")
         label.TextColor3 = self:Color("Primary")
     end)
 
     comp:Connect(box.FocusLost, function()
-        tween(focusLine, { Size = UDim2.new(0, 0, 0, 2) }, Dur.medium)
+        tween(focusLine, { Size = UDim2.new(0, 0, 0, 2) }, Dur.short, "emphasized")
         label.TextColor3 = self:Color("OnSurfaceVariant")
         if props.OnChanged then props.OnChanged(box.Text) end
     end)
@@ -1436,7 +1492,82 @@ function MD3:TextField(props)
 end
 
 --------------------------------------------------------------------
--- 5.9 Chip
+-- 5.10 SearchBar (新增)
+--------------------------------------------------------------------
+function MD3:SearchBar(props)
+    props = props or {}
+    local height = props.Height or 56
+
+    local container = create("Frame", {
+        Name = "MD3_SearchBar",
+        Size = UDim2.new(1, 0, 0, height),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+        LayoutOrder = props.LayoutOrder or self:_nextOrder(),
+        Parent = props.Parent,
+    })
+    addCorner(container, height / 2)
+
+    local searchIcon = create("ImageLabel", {
+        Name = "SearchIcon",
+        Image = props.Icon or "rbxassetid://0",
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(0, Space.lg, 0.5, -12),
+        BackgroundTransparency = 1,
+        ImageColor3 = Color3.new(1, 1, 1),
+        Parent = container,
+    })
+
+    local box = create("TextBox", {
+        Text = props.Default or "",
+        PlaceholderText = props.Placeholder or "搜索...",
+        Size = UDim2.new(1, -Space.lg - 24 - Space.md - Space.lg, 1, 0),
+        Position = UDim2.new(0, Space.lg + 24 + Space.md, 0, 0),
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ClearTextOnFocus = false,
+        Parent = container,
+    })
+    applyFont(box, "BodyLarge")
+
+    local comp = newComponent(self, container)
+
+    comp:SetThemeFn(function()
+        container.BackgroundColor3 = self:Color("SurfaceContainerHigh")
+        searchIcon.ImageColor3 = self:Color("OnSurfaceVariant")
+        box.TextColor3 = self:Color("OnSurface")
+        box.PlaceholderColor3 = self:Color("OnSurfaceVariant")
+    end)
+
+    comp:Connect(box.Focused, function()
+        tween(container, {
+            BackgroundColor3 = self:Color("SurfaceContainerHighest")
+        }, Dur.short, "standard")
+        searchIcon.ImageColor3 = self:Color("OnSurface")
+    end)
+
+    comp:Connect(box.FocusLost, function()
+        tween(container, {
+            BackgroundColor3 = self:Color("SurfaceContainerHigh")
+        }, Dur.short, "standard")
+        searchIcon.ImageColor3 = self:Color("OnSurfaceVariant")
+        if props.OnSubmitted then props.OnSubmitted(box.Text) end
+    end)
+
+    comp:Connect(box:GetPropertyChangedSignal("Text"), function()
+        if props.OnChanged then props.OnChanged(box.Text) end
+    end)
+
+    function comp:Get() return box.Text end
+    function comp:Set(t) box.Text = t end
+    function comp:Focus() box:CaptureFocus() end
+
+    return comp
+end
+
+--------------------------------------------------------------------
+-- 5.11 Chip
 --------------------------------------------------------------------
 function MD3:Chip(props)
     props = props or {}
@@ -1460,8 +1591,8 @@ function MD3:Chip(props)
 
     local label = create("TextLabel", {
         Text = props.Text or "Chip",
-        Size = UDim2.new(1, -16, 1, 0),
-        Position = UDim2.new(0, 8, 0, 0),
+        Size = UDim2.new(1, -Space.lg * 2, 1, 0),
+        Position = UDim2.new(0, Space.lg, 0, 0),
         BackgroundTransparency = 1,
         TextTruncate = Enum.TextTruncate.AtEnd,
         TextXAlignment = Enum.TextXAlignment.Center,
@@ -1490,10 +1621,10 @@ function MD3:Chip(props)
     end)
 
     comp:Connect(chip.MouseEnter, function()
-        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(chip.MouseLeave, function()
-        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
 
     comp:Connect(chip.InputBegan, function(input)
@@ -1521,7 +1652,158 @@ function MD3:Chip(props)
 end
 
 --------------------------------------------------------------------
--- 5.10 Card (带 elevation 1dp)
+-- 5.12 Badge (新增)
+--------------------------------------------------------------------
+function MD3:Badge(props)
+    props = props or {}
+    local variant = props.Variant or "Small"  -- Small / Large
+    local count   = props.Count or 0
+    local max     = props.Max or 99
+
+    local isSmall = variant == "Small"
+    local size = isSmall and 8 or 20
+    local width = isSmall and 8 or (count >= 10 and 24 or 20)
+
+    local badge = create("Frame", {
+        Name = "MD3_Badge",
+        Size = UDim2.new(0, width, 0, size),
+        Position = props.Position or UDim2.new(1, -width, 0, 0),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+        ZIndex = (props.ZIndex or 1) + 10,
+        Parent = props.Parent,
+    })
+    addCorner(badge, size / 2)
+
+    local label
+    if not isSmall then
+        label = create("TextLabel", {
+            Text = count > max and (tostring(max) .. "+") or tostring(count),
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            Parent = badge,
+        })
+        applyFont(label, "LabelSmall")
+    end
+
+    local comp = newComponent(self, badge)
+
+    comp:SetThemeFn(function()
+        badge.BackgroundColor3 = self:Color("Error")
+        if label then label.TextColor3 = self:Color("OnError") end
+    end)
+
+    function comp:SetCount(n)
+        count = n
+        if label then
+            label.Text = count > max and (tostring(max) .. "+") or tostring(count)
+            badge.Size = UDim2.new(0, count >= 10 and 24 or 20, 0, 20)
+        end
+    end
+
+    function comp:SetVisible(v)
+        badge.Visible = v
+    end
+
+    return comp
+end
+
+--------------------------------------------------------------------
+-- 5.13 Tooltip (新增)
+--------------------------------------------------------------------
+function MD3:Tooltip(props)
+    props = props or {}
+    local text    = props.Text or "Tooltip"
+    local variant = props.Variant or "Plain"  -- Plain / Rich
+    local target  = props.Target
+    if not target then
+        warn("[MD3UI] Tooltip 需要 Target 参数")
+        return nil
+    end
+
+    local tooltip = create("Frame", {
+        Name = "MD3_Tooltip",
+        Size = variant == "Rich" and UDim2.new(0, 320, 0, 0) or UDim2.new(0, 0, 0, 32),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+        Visible = false,
+        ZIndex = 500,
+        AutomaticSize = Enum.AutomaticSize.XY,
+        Parent = self.ScreenGui,
+    })
+    addCorner(tooltip, 4)
+    addPadding(tooltip, UDim.new(0, 8))
+    addShadow(tooltip, 2)
+
+    local label = create("TextLabel", {
+        Text = text,
+        Size = variant == "Rich" and UDim2.new(1, 0, 0, 0) or UDim2.new(0, 0, 1, 0),
+        AutomaticSize = variant == "Rich" and Enum.AutomaticSize.Y or Enum.AutomaticSize.X,
+        BackgroundTransparency = 1,
+        TextWrapped = variant == "Rich",
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        Parent = tooltip,
+    })
+    applyFont(label, variant == "Rich" and "BodyMedium" or "BodySmall")
+
+    local comp = newComponent(self, tooltip)
+    local hoverToken = 0
+
+    comp:SetThemeFn(function()
+        tooltip.BackgroundColor3 = self:Color("InverseSurface")
+        label.TextColor3 = self:Color("InverseOnSurface")
+    end)
+
+    local function position()
+        local targetPos = target.AbsolutePosition
+        local targetSize = target.AbsoluteSize
+        local tp = tooltip.AbsoluteSize
+
+        local x = targetPos.X + targetSize.X / 2 - tp.X / 2
+        local y = targetPos.Y - tp.Y - 8
+
+        -- 超出屏幕上方时放下方
+        if y < 0 then
+            y = targetPos.Y + targetSize.Y + 8
+        end
+
+        tooltip.Position = UDim2.new(0, x, 0, y)
+    end
+
+    local function show()
+        hoverToken = hoverToken + 1
+        local myToken = hoverToken
+        task.delay(props.Delay or 0.5, function()
+            if myToken ~= hoverToken then return end
+            tooltip.Visible = true
+            position()
+            tooltip.BackgroundTransparency = 1
+            label.TextTransparency = 1
+            tween(tooltip, { BackgroundTransparency = 0 }, Dur.short, "emphasizedDecel")
+            tween(label, { TextTransparency = 0 }, Dur.short, "emphasizedDecel")
+        end)
+    end
+
+    local function hide()
+        hoverToken = hoverToken + 1
+        tween(tooltip, { BackgroundTransparency = 1 }, Dur.micro, "standard")
+        tween(label, { TextTransparency = 1 }, Dur.micro, "standard")
+        task.delay(Dur.micro, function()
+            tooltip.Visible = false
+        end)
+    end
+
+    comp:Connect(target.MouseEnter, show)
+    comp:Connect(target.MouseLeave, hide)
+
+    return comp
+end
+
+--------------------------------------------------------------------
+-- 5.14 Card
 --------------------------------------------------------------------
 function MD3:Card(props)
     props = props or {}
@@ -1536,10 +1818,9 @@ function MD3:Card(props)
         Parent = props.Parent,
     })
     addCorner(card, 12)
-    addPadding(card, UDim.new(0, 16))
-    addList(card, { Padding = UDim.new(0, 8) })
+    addPadding(card, UDim.new(0, Space.lg))
+    addList(card, { Padding = UDim.new(0, Space.sm) })
 
-    -- 卡片 elevation 1dp
     if props.Elevated ~= false then
         addShadow(card, 1)
     end
@@ -1582,7 +1863,7 @@ function MD3:Card(props)
             LayoutOrder = 3,
             Parent = card,
         })
-        addList(content, { Padding = UDim.new(0, 8) })
+        addList(content, { Padding = UDim.new(0, Space.sm) })
     end
 
     local comp = newComponent(self, card)
@@ -1598,7 +1879,7 @@ function MD3:Card(props)
 end
 
 --------------------------------------------------------------------
--- 5.11 Divider
+-- 5.15 Divider
 --------------------------------------------------------------------
 function MD3:Divider(parent)
     local d = create("Frame", {
@@ -1617,7 +1898,7 @@ function MD3:Divider(parent)
 end
 
 --------------------------------------------------------------------
--- 5.12 SectionTitle
+-- 5.16 SectionTitle
 --------------------------------------------------------------------
 function MD3:SectionTitle(props)
     props = props or {}
@@ -1641,7 +1922,7 @@ function MD3:SectionTitle(props)
 end
 
 --------------------------------------------------------------------
--- 5.13 ListItem
+-- 5.17 ListItem
 --------------------------------------------------------------------
 function MD3:ListItem(props)
     props = props or {}
@@ -1664,7 +1945,7 @@ function MD3:ListItem(props)
     local headline = create("TextLabel", {
         Text = props.Headline or "Item",
         Size = UDim2.new(1, -80, 0, 20),
-        Position = UDim2.new(0, 16, 0, props.Supporting and (height/2 - 22) or (height/2 - 10)),
+        Position = UDim2.new(0, Space.lg, 0, props.Supporting and (height/2 - 22) or (height/2 - 10)),
         BackgroundTransparency = 1,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1677,7 +1958,7 @@ function MD3:ListItem(props)
         supporting = create("TextLabel", {
             Text = props.Supporting,
             Size = UDim2.new(1, -80, 0, 16),
-            Position = UDim2.new(0, 16, 0, height/2 + 2),
+            Position = UDim2.new(0, Space.lg, 0, height/2 + 2),
             BackgroundTransparency = 1,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1710,10 +1991,10 @@ function MD3:ListItem(props)
     end)
 
     comp:Connect(item.MouseEnter, function()
-        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(item.MouseLeave, function()
-        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
 
     comp:Connect(item.InputBegan, function(input)
@@ -1733,7 +2014,7 @@ function MD3:ListItem(props)
 end
 
 --------------------------------------------------------------------
--- 5.14 ProgressBar
+-- 5.18 ProgressBar
 --------------------------------------------------------------------
 function MD3:ProgressBar(props)
     props = props or {}
@@ -1769,7 +2050,7 @@ function MD3:ProgressBar(props)
     function comp:SetValue(v)
         v = math.clamp(v, 0, 1)
         indeterminateActive = false
-        tween(fill, { Size = UDim2.new(v, 0, 1, 0) }, Dur.short)
+        tween(fill, { Size = UDim2.new(v, 0, 1, 0) }, Dur.short, "standard")
         fill.Position = UDim2.new(0, 0, 0, 0)
     end
 
@@ -1780,7 +2061,7 @@ function MD3:ProgressBar(props)
         task.spawn(function()
             while indeterminateActive and fill and fill.Parent do
                 fill.Position = UDim2.new(-0.3, 0, 0, 0)
-                local t = tween(fill, { Position = UDim2.new(1, 0, 0, 0) }, 1.4, Enum.EasingStyle.Linear)
+                local t = tween(fill, { Position = UDim2.new(1, 0, 0, 0) }, 1.4, "linear")
                 t.Completed:Wait()
             end
         end)
@@ -1790,7 +2071,82 @@ function MD3:ProgressBar(props)
 end
 
 --------------------------------------------------------------------
--- 5.15 Dialog (带 elevation level 5)
+-- 5.19 LoadingIndicator (新增)
+--------------------------------------------------------------------
+function MD3:LoadingIndicator(props)
+    props = props or {}
+    local size = props.Size or 40
+    local strokeWidth = props.StrokeWidth or 4
+
+    local container = create("Frame", {
+        Name = "MD3_LoadingIndicator",
+        Size = UDim2.new(0, size, 0, size),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        LayoutOrder = props.LayoutOrder or self:_nextOrder(),
+        Parent = props.Parent,
+    })
+
+    -- 底圈
+    local track = create("Frame", {
+        Name = "Track",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Parent = container,
+    })
+    addCorner(track, UDim.new(0.5, 0))
+    local trackStroke = addStroke(track, Color3.new(1, 1, 1), strokeWidth)
+
+    -- 旋转圆弧 (用 ImageLabel 旋转，或者用两个半圆拼合)
+    -- 用 UIGradient + Frame 做弧线效果：这里用简化方案 - 旋转的实心圆点
+    local spinner = create("Frame", {
+        Name = "Spinner",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Parent = container,
+    })
+
+    -- 弧线用一根 4dp 宽的条，两端圆角，然后旋转
+    local arc = create("Frame", {
+        Name = "Arc",
+        Size = UDim2.new(0, size, 0, strokeWidth),
+        Position = UDim2.new(0, 0, 0, size/2 - strokeWidth/2),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Parent = spinner,
+    })
+    addCorner(arc, strokeWidth / 2)
+    -- 只显示一半 (用 ClipsDescendants + mask 太复杂，直接接受整条)
+    arc.Size = UDim2.new(0.5, 0, 0, strokeWidth)
+
+    local comp = newComponent(self, container)
+    local rotationConn = nil
+
+    comp:SetThemeFn(function()
+        trackStroke.Color = self:Color("SurfaceContainerHighest")
+        trackStroke.Transparency = 0
+        arc.BackgroundColor3 = self:Color("Primary")
+    end)
+
+    -- 旋转动画
+    local rotation = 0
+    rotationConn = RunService.RenderStepped:Connect(function(dt)
+        if comp._destroyed then return end
+        rotation = (rotation + dt * 360) % 360
+        spinner.Rotation = rotation
+    end)
+    table.insert(comp._connections, rotationConn)
+
+    return comp
+end
+
+--------------------------------------------------------------------
+-- 5.20 Dialog
 --------------------------------------------------------------------
 function MD3:Dialog(props)
     props = props or {}
@@ -1824,16 +2180,14 @@ function MD3:Dialog(props)
         Parent = self.ScreenGui,
     })
     addCorner(dialog, 28)
-
-    -- Dialog elevation level 5
     addShadow(dialog, 5)
 
     local uiScale = create("UIScale", { Scale = 1, Parent = dialog })
 
     local title = create("TextLabel", {
         Text = props.Title or "Dialog",
-        Size = UDim2.new(1, -48, 0, 32),
-        Position = UDim2.new(0, 24, 0, 24),
+        Size = UDim2.new(1, -Space.xl * 2, 0, 32),
+        Position = UDim2.new(0, Space.xl, 0, Space.xl),
         BackgroundTransparency = 1,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1843,8 +2197,8 @@ function MD3:Dialog(props)
 
     local body = create("TextLabel", {
         Text = props.Body or "",
-        Size = UDim2.new(1, -48, 0, 60),
-        Position = UDim2.new(0, 24, 0, 64),
+        Size = UDim2.new(1, -Space.xl * 2, 0, 60),
+        Position = UDim2.new(0, Space.xl, 0, Space.xl + 40),
         BackgroundTransparency = 1,
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -1854,15 +2208,15 @@ function MD3:Dialog(props)
     applyFont(body, "BodyMedium")
 
     local actions = create("Frame", {
-        Size = UDim2.new(1, -48, 0, 40),
-        Position = UDim2.new(0, 24, 1, -56),
+        Size = UDim2.new(1, -Space.xl * 2, 0, 40),
+        Position = UDim2.new(0, Space.xl, 1, -Space.xl - 40),
         BackgroundTransparency = 1,
         Parent = dialog,
     })
     addList(actions, {
         FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, Space.sm),
     })
 
     local comp = newComponent(self, dialog)
@@ -1898,16 +2252,15 @@ function MD3:Dialog(props)
         dialog.Visible = true
         scrim.BackgroundTransparency = 1
         uiScale.Scale = 0.85
-
-        tween(scrim, { BackgroundTransparency = 0.5 }, Dur.medium)
-        tween(uiScale, { Scale = 1 }, Dur.medium, Enum.EasingStyle.Back)
+        tween(scrim, { BackgroundTransparency = 0.5 }, Dur.medium, "standard")
+        tween(uiScale, { Scale = 1 }, Dur.long, "emphasizedDecel")
     end
 
     function comp:Close()
         if not isOpen then return end
         isOpen = false
-        tween(scrim, { BackgroundTransparency = 1 }, Dur.short)
-        local t = tween(uiScale, { Scale = 0.85 }, Dur.short, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        tween(scrim, { BackgroundTransparency = 1 }, Dur.short, "standard")
+        local t = tween(uiScale, { Scale = 0.85 }, Dur.short, "emphasizedAccel")
         t.Completed:Connect(function()
             if not isOpen then
                 scrim.Visible = false
@@ -1934,7 +2287,7 @@ function MD3:Dialog(props)
 end
 
 --------------------------------------------------------------------
--- 5.16 Snackbar (圆角 4dp，带 elevation 3)
+-- 5.21 Snackbar (4dp 圆角)
 --------------------------------------------------------------------
 function MD3:Snackbar(props)
     props = props or {}
@@ -1955,11 +2308,8 @@ function MD3:Snackbar(props)
         ZIndex = 200,
         Parent = self.ScreenGui,
     })
-    -- MD3 Snackbar 圆角 = 4dp
     addCorner(container, 4)
-    addPadding(container, UDim.new(0, 14))
-
-    -- Snackbar elevation level 3
+    addPadding(container, UDim.new(0, Space.lg))
     addShadow(container, 3)
 
     local label = create("TextLabel", {
@@ -2010,7 +2360,7 @@ function MD3:Snackbar(props)
         container.Visible = true
         tween(container, {
             Position = UDim2.new(0.5, 0, 1, -20)
-        }, Dur.medium, Enum.EasingStyle.Back)
+        }, Dur.medium, "emphasizedDecel")
 
         local duration = options.Duration or props.Duration or 3
         task.delay(duration, function()
@@ -2022,7 +2372,7 @@ function MD3:Snackbar(props)
         hideToken = hideToken + 1
         local t = tween(container, {
             Position = UDim2.new(0.5, 0, 1, 100)
-        }, Dur.medium, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        }, Dur.short, "emphasizedAccel")
         t.Completed:Connect(function()
             if container and container.Parent then
                 container.Visible = false
@@ -2034,13 +2384,12 @@ function MD3:Snackbar(props)
 end
 
 --------------------------------------------------------------------
--- 5.17 SegmentedButton (MD3 新增)
+-- 5.22 SegmentedButton
 --------------------------------------------------------------------
 function MD3:SegmentedButton(props)
     props = props or {}
     local options = props.Options or {}
     local selectedIndex = props.Default or 1
-    local group = props.Group or ("seg_" .. tostring(self:_nextOrder()))
 
     local container = create("Frame", {
         Name = "MD3_SegmentedButton",
@@ -2053,7 +2402,7 @@ function MD3:SegmentedButton(props)
         Parent = props.Parent,
     })
 
-    local layout = addList(container, {
+    addList(container, {
         FillDirection = Enum.FillDirection.Horizontal,
         Padding = UDim.new(0, 0),
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -2061,16 +2410,6 @@ function MD3:SegmentedButton(props)
 
     local segments = {}
     local comp = newComponent(self, container)
-
-    -- 每个 segment 等宽
-    local function updateWidths()
-        local n = #segments
-        if n == 0 then return end
-        local eachW = 1 / n
-        for i, seg in ipairs(segments) do
-            seg.btn.Size = UDim2.new(eachW, 0, 1, 0)
-        end
-    end
 
     for i, optText in ipairs(options) do
         local btn = create("TextButton", {
@@ -2087,7 +2426,6 @@ function MD3:SegmentedButton(props)
             Parent = container,
         })
 
-        -- 圆角: 第一个左圆角，最后一个右圆角，中间无圆角
         local corner = Instance.new("UICorner")
         if #options == 1 then
             corner.CornerRadius = UDim.new(0.5, 0)
@@ -2104,8 +2442,8 @@ function MD3:SegmentedButton(props)
 
         local lbl = create("TextLabel", {
             Text = optText,
-            Size = UDim2.new(1, -16, 1, 0),
-            Position = UDim2.new(0, 8, 0, 0),
+            Size = UDim2.new(1, -Space.lg * 2, 1, 0),
+            Position = UDim2.new(0, Space.lg, 0, 0),
             BackgroundTransparency = 1,
             TextXAlignment = Enum.TextXAlignment.Center,
             TextTruncate = Enum.TextTruncate.AtEnd,
@@ -2142,10 +2480,10 @@ function MD3:SegmentedButton(props)
         seg.apply = applySeg
 
         comp:Connect(btn.MouseEnter, function()
-            tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+            tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
         end)
         comp:Connect(btn.MouseLeave, function()
-            tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+            tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
         end)
 
         comp:Connect(btn.InputBegan, function(input)
@@ -2159,7 +2497,6 @@ function MD3:SegmentedButton(props)
 
         comp:Connect(btn.MouseButton1Click, function()
             if selectedIndex == i then return end
-            local old = selectedIndex
             selectedIndex = i
             for _, s in ipairs(segments) do s.apply() end
             if props.OnChanged then props.OnChanged(i, options[i]) end
@@ -2182,7 +2519,158 @@ function MD3:SegmentedButton(props)
 end
 
 --------------------------------------------------------------------
--- 5.18 BottomSheet (MD3 新增)
+-- 5.23 NavigationRail (新增)
+--------------------------------------------------------------------
+function MD3:NavigationRail(props)
+    props = props or {}
+    local railWidth = props.Width or 80
+    local items     = props.Items or {}
+
+    local rail = create("Frame", {
+        Name = "MD3_NavigationRail",
+        Size = UDim2.new(0, railWidth, 1, 0),
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BorderSizePixel = 0,
+        LayoutOrder = props.LayoutOrder or self:_nextOrder(),
+        Parent = props.Parent,
+    })
+
+    addPadding(rail, UDim.new(0, Space.sm))
+    addList(rail, {
+        FillDirection = Enum.FillDirection.Vertical,
+        Padding = UDim.new(0, Space.xs),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    })
+
+    -- 顶部 FAB 位 (可选)
+    if props.FAB then
+        local fabContainer = create("Frame", {
+            Size = UDim2.new(1, 0, 0, 72),
+            BackgroundTransparency = 1,
+            LayoutOrder = 0,
+            Parent = rail,
+        })
+        local fab = self:FAB({
+            Parent = fabContainer,
+            Icon = props.FAB.Icon,
+            Size = 56,
+            OnClick = props.FAB.OnClick,
+        })
+        fab.Root.Position = UDim2.new(0.5, -28, 0.5, -28)
+    end
+
+    local buttons = {}
+    local currentIndex = props.Default or 1
+    local comp = newComponent(self, rail)
+
+    for i, item in ipairs(items) do
+        local btn = create("TextButton", {
+            Name = "Rail_" .. i,
+            Text = "",
+            Size = UDim2.new(1, -Space.sm, 0, 56),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BackgroundTransparency = 1,
+            AutoButtonColor = false,
+            BorderSizePixel = 0,
+            ClipsDescendants = true,
+            AutoLocalize = false,
+            LayoutOrder = i,
+            Parent = rail,
+        })
+
+        -- 指示器 (药丸形)
+        local indicator = create("Frame", {
+            Name = "Indicator",
+            Size = UDim2.new(0, 56, 0, 32),
+            Position = UDim2.new(0.5, -28, 0, 4),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Parent = btn,
+        })
+        addCorner(indicator, 16)
+
+        local icon = create("ImageLabel", {
+            Name = "Icon",
+            Image = item.Icon or "rbxassetid://0",
+            Size = UDim2.new(0, 24, 0, 24),
+            Position = UDim2.new(0.5, -12, 0, 8),
+            BackgroundTransparency = 1,
+            ImageColor3 = Color3.new(1, 1, 1),
+            Parent = btn,
+        })
+
+        local lbl = create("TextLabel", {
+            Name = "Label",
+            Text = item.Label or item.Text or "",
+            Size = UDim2.new(1, 0, 0, 16),
+            Position = UDim2.new(0, 0, 0, 36),
+            BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            Parent = btn,
+        })
+        applyFont(lbl, "LabelMedium")
+
+        local stateLayer = addStateLayer(btn, Color3.new(1, 1, 1), 28)
+
+        local itemRef = {
+            btn = btn, indicator = indicator, icon = icon, label = lbl,
+            stateLayer = stateLayer, index = i, data = item,
+        }
+        table.insert(buttons, itemRef)
+
+        local function applyItem()
+            local active = (currentIndex == i)
+            if active then
+                indicator.BackgroundColor3 = self:Color("SecondaryContainer")
+                indicator.BackgroundTransparency = 0
+                icon.ImageColor3 = self:Color("OnSecondaryContainer")
+                lbl.TextColor3 = self:Color("OnSecondaryContainer")
+                stateLayer.BackgroundColor3 = self:Color("OnSecondaryContainer")
+            else
+                indicator.BackgroundTransparency = 1
+                icon.ImageColor3 = self:Color("OnSurfaceVariant")
+                lbl.TextColor3 = self:Color("OnSurfaceVariant")
+                stateLayer.BackgroundColor3 = self:Color("OnSurfaceVariant")
+            end
+        end
+
+        itemRef.apply = applyItem
+
+        comp:Connect(btn.MouseEnter, function()
+            tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
+        end)
+        comp:Connect(btn.MouseLeave, function()
+            tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
+        end)
+
+        comp:Connect(btn.MouseButton1Click, function()
+            if currentIndex == i then return end
+            currentIndex = i
+            for _, b in ipairs(buttons) do b.apply() end
+            if props.OnChanged then props.OnChanged(i, item) end
+        end)
+    end
+
+    comp:SetThemeFn(function()
+        rail.BackgroundColor3 = self:Color("SurfaceContainer")
+        for _, b in ipairs(buttons) do b.apply() end
+    end)
+
+    function comp:Get() return currentIndex end
+    function comp:Set(idx)
+        if idx < 1 or idx > #buttons then return end
+        currentIndex = idx
+        for _, b in ipairs(buttons) do b.apply() end
+    end
+
+    return comp
+end
+
+--------------------------------------------------------------------
+-- 5.24 BottomSheet
 --------------------------------------------------------------------
 function MD3:BottomSheet(props)
     props = props or {}
@@ -2214,15 +2702,12 @@ function MD3:BottomSheet(props)
         Parent = self.ScreenGui,
     })
 
-    -- 顶部圆角 28dp
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 28)
     corner.Parent = sheet
 
-    -- 阴影
     addShadow(sheet, 4)
 
-    -- 拖拽手柄 (顶部居中的小横条)
     local dragHandle = create("Frame", {
         Name = "DragHandle",
         Size = UDim2.new(0, 32, 0, 4),
@@ -2233,11 +2718,10 @@ function MD3:BottomSheet(props)
     })
     addCorner(dragHandle, UDim.new(0.5, 0))
 
-    -- 内容容器
     local content = create("ScrollingFrame", {
         Name = "Content",
-        Size = UDim2.new(1, -48, 1, -48),
-        Position = UDim2.new(0, 24, 0, 32),
+        Size = UDim2.new(1, -Space.xl * 2, 1, -Space.xxl),
+        Position = UDim2.new(0, Space.xl, 0, Space.xxl),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         CanvasSize = UDim2.new(0, 0, 0, 0),
@@ -2248,7 +2732,7 @@ function MD3:BottomSheet(props)
         ScrollBarImageTransparency = 0.5,
         Parent = sheet,
     })
-    addList(content, { Padding = UDim.new(0, 12) })
+    addList(content, { Padding = UDim.new(0, Space.md) })
 
     local comp = newComponent(self, sheet)
     comp.Content = content
@@ -2261,7 +2745,6 @@ function MD3:BottomSheet(props)
         dragHandle.BackgroundColor3 = self:Color("OnSurfaceVariant")
     end)
 
-    -- 拖拽关闭
     local dragStartY, sheetStartY = nil, nil
     comp:Connect(dragHandle.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -2288,7 +2771,7 @@ function MD3:BottomSheet(props)
                 if delta > 80 then
                     comp:Close()
                 else
-                    tween(sheet, { Position = UDim2.new(0, 0, 1, -sheetHeight) }, Dur.medium)
+                    tween(sheet, { Position = UDim2.new(0, 0, 1, -sheetHeight) }, Dur.medium, "emphasizedDecel")
                 end
                 dragStartY = nil
             end
@@ -2302,18 +2785,17 @@ function MD3:BottomSheet(props)
         sheet.Visible = true
         scrim.BackgroundTransparency = 1
         sheet.Position = UDim2.new(0, 0, 1, sheetHeight)
-
-        tween(scrim, { BackgroundTransparency = 0.5 }, Dur.medium)
-        tween(sheet, { Position = UDim2.new(0, 0, 1, -sheetHeight) }, Dur.medium, Enum.EasingStyle.Quint)
+        tween(scrim, { BackgroundTransparency = 0.5 }, Dur.medium, "standard")
+        tween(sheet, { Position = UDim2.new(0, 0, 1, -sheetHeight) }, Dur.long, "emphasizedDecel")
     end
 
     function comp:Close()
         if not isOpen then return end
         isOpen = false
-        tween(scrim, { BackgroundTransparency = 1 }, Dur.short)
+        tween(scrim, { BackgroundTransparency = 1 }, Dur.short, "standard")
         local t = tween(sheet, {
             Position = UDim2.new(0, 0, 1, sheetHeight + 20)
-        }, Dur.medium, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        }, Dur.medium, "emphasizedAccel")
         t.Completed:Connect(function()
             if not isOpen then
                 scrim.Visible = false
@@ -2366,13 +2848,10 @@ function MD3:CreateWindow(props)
         Parent = self.ScreenGui,
     })
     addCorner(main, 20)
-
-    -- 窗口 elevation level 4
     addShadow(main, 4)
 
     local uiScale = create("UIScale", { Scale = props.Scale or 1, Parent = main })
 
-    -- 标题栏
     local topBar = create("TextButton", {
         Name = "TopBar",
         Text = "",
@@ -2389,7 +2868,7 @@ function MD3:CreateWindow(props)
     local titleLabel = create("TextLabel", {
         Text = props.Title or "MD3UI",
         Size = UDim2.new(1, -110, 1, 0),
-        Position = UDim2.new(0, 20, 0, 0),
+        Position = UDim2.new(0, Space.xl - 4, 0, 0),
         BackgroundTransparency = 1,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
@@ -2398,7 +2877,6 @@ function MD3:CreateWindow(props)
     })
     applyFont(titleLabel, "TitleMedium")
 
-    -- 关闭/最小化按钮
     local closeBtn = create("TextButton", {
         Name = "CloseBtn", Text = "✕",
         Size = UDim2.new(0, 32, 0, 32),
@@ -2427,7 +2905,6 @@ function MD3:CreateWindow(props)
     addCorner(minBtn, 16)
     local minStateLayer = addStateLayer(minBtn, Color3.new(1, 1, 1), 16)
 
-    -- 主体
     local body = create("Frame", {
         Name = "Body",
         Size = UDim2.new(1, 0, 1, -topBarHeight),
@@ -2444,10 +2921,10 @@ function MD3:CreateWindow(props)
         BorderSizePixel = 0,
         Parent = body,
     })
-    addPadding(sidebar, UDim.new(0, 8))
+    addPadding(sidebar, UDim.new(0, Space.sm))
     addList(sidebar, {
         FillDirection = Enum.FillDirection.Vertical,
-        Padding = UDim.new(0, 4),
+        Padding = UDim.new(0, Space.xs),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
@@ -2459,7 +2936,7 @@ function MD3:CreateWindow(props)
         Parent = body,
     })
 
-    -- 拖动逻辑
+    -- 拖动
     local dragging, dragStart, startPos = false, nil, nil
 
     local dragStartConn = topBar.InputBegan:Connect(function(input)
@@ -2520,16 +2997,16 @@ function MD3:CreateWindow(props)
     end)
 
     comp:Connect(closeBtn.MouseEnter, function()
-        tween(closeStateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(closeStateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(closeBtn.MouseLeave, function()
-        tween(closeStateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(closeStateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
     comp:Connect(minBtn.MouseEnter, function()
-        tween(minStateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+        tween(minStateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
     end)
     comp:Connect(minBtn.MouseLeave, function()
-        tween(minStateLayer, { BackgroundTransparency = 1 }, Dur.short)
+        tween(minStateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
     end)
 
     comp:Connect(closeBtn.MouseButton1Click, function()
@@ -2544,11 +3021,11 @@ function MD3:CreateWindow(props)
             savedHeight = main.Size.Y.Offset
             tween(main, {
                 Size = UDim2.new(main.Size.X.Scale, main.Size.X.Offset, 0, topBarHeight)
-            }, Dur.medium)
+            }, Dur.medium, "emphasized")
         else
             tween(main, {
                 Size = UDim2.new(main.Size.X.Scale, main.Size.X.Offset, 0, savedHeight)
-            }, Dur.medium)
+            }, Dur.medium, "emphasized")
         end
     end)
 
@@ -2573,8 +3050,8 @@ function MD3:CreateWindow(props)
 
         local btnLabel = create("TextLabel", {
             Text = tabTitle,
-            Size = UDim2.new(1, -24, 1, 0),
-            Position = UDim2.new(0, 16, 0, 0),
+            Size = UDim2.new(1, -Space.lg * 2, 1, 0),
+            Position = UDim2.new(0, Space.lg, 0, 0),
             BackgroundTransparency = 1,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextTruncate = Enum.TextTruncate.AtEnd,
@@ -2598,10 +3075,10 @@ function MD3:CreateWindow(props)
             Visible = false,
             Parent = contentArea,
         })
-        addPadding(page, UDim.new(0, 16))
+        addPadding(page, UDim.new(0, Space.lg))
         addList(page, {
             FillDirection = Enum.FillDirection.Vertical,
-            Padding = UDim.new(0, 12),
+            Padding = UDim.new(0, Space.md),
             SortOrder = Enum.SortOrder.LayoutOrder,
         })
 
@@ -2634,11 +3111,11 @@ function MD3:CreateWindow(props)
 
         comp:Connect(btn.MouseEnter, function()
             if currentTab ~= tab then
-                tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.short)
+                tween(stateLayer, { BackgroundTransparency = StateOpacity.Hover }, Dur.micro, "standard")
             end
         end)
         comp:Connect(btn.MouseLeave, function()
-            tween(stateLayer, { BackgroundTransparency = 1 }, Dur.short)
+            tween(stateLayer, { BackgroundTransparency = 1 }, Dur.micro, "standard")
         end)
 
         comp:Connect(btn.MouseButton1Click, function()
