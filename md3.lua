@@ -1921,12 +1921,15 @@ function MD3:CreateWindow(props)
             Parent = btn,
         })
 
+        -- ✅ 换成这样
         local page = create("ScrollingFrame", {
             Name = "Page_" .. tabTitle,
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,   -- ⭐ 自动
+            ScrollingDirection = Enum.ScrollingDirection.Y,
             ScrollBarThickness = 3,
             ScrollBarImageColor3 = Color3.new(1, 1, 1),
             ScrollBarImageTransparency = 0.5,
@@ -1934,18 +1937,14 @@ function MD3:CreateWindow(props)
             Parent = contentArea,
         })
         addPadding(page, UDim.new(0, 14))
-        local pageLayout = addList(page, {
+        addList(page, {
             FillDirection = Enum.FillDirection.Vertical,
             Padding = UDim.new(0, 8),
             SortOrder = Enum.SortOrder.LayoutOrder,
         })
+        -- 删除手动监听 updateCanvas 的整段逻辑
 
-        -- 自动 CanvasSize
-        local function updateCanvas()
-            page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 28)
-        end
-        pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
-        task.defer(updateCanvas)
+        local windowSelf = self
 
         local tab = {
             Title   = tabTitle,
@@ -1959,15 +1958,15 @@ function MD3:CreateWindow(props)
         function tab._refresh()
             local active = (currentTab == tab)
             if active then
-                btn.BackgroundColor3 = self:Color("SecondaryContainer")
+                btn.BackgroundColor3       = windowSelf:Color("SecondaryContainer")
                 btn.BackgroundTransparency = 0
-                btnLabel.TextColor3 = self:Color("OnSecondaryContainer")
-                page.Visible = true
+                btnLabel.TextColor3        = windowSelf:Color("OnSecondaryContainer")
+                page.Visible               = true
             else
-                btn.BackgroundColor3 = self:Color("SurfaceContainerLow")
+                btn.BackgroundColor3       = windowSelf:Color("SurfaceContainerLow")
                 btn.BackgroundTransparency = 1
-                btnLabel.TextColor3 = self:Color("OnSurfaceVariant")
-                page.Visible = false
+                btnLabel.TextColor3        = windowSelf:Color("OnSurfaceVariant")
+                page.Visible               = false
             end
         end
 
