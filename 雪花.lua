@@ -1,20 +1,8 @@
 --[[
 ================================================================================
-    ███████╗███╗   ██╗ ██████╗ ██╗    ██╗
-    ██╔════╝████╗  ██║██╔═══██╗██║    ██║
-    ███████╗██╔██╗ ██║██║   ██║██║ █╗ ██║
-    ╚════██║██║╚██╗██║██║   ██║██║███╗██║
-    ███████║██║ ╚████║╚██████╔╝╚███╔███╔╝
-    ╚══════╝╚═╝  ╚═══╝ ╚═════╝  ╚══╝╚══╝
-
     Snow UI Library  |  雪花 UI 库
-    --------------------------------------------------------------------------
     Version : 1.0.0
-    Author  : Snow Development
     License : MIT
-    --------------------------------------------------------------------------
-    这是一个面向生产环境的 Roblox UI 库，提供完整的主题、动画、
-    输入处理与组件体系。v1.0 版本包含最基础的核心控件集合。
 ================================================================================
 ]]
 
@@ -26,6 +14,7 @@ local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players          = game:GetService("Players")
 local CoreGui          = game:GetService("CoreGui")
+local RunService       = game:GetService("RunService")
 
 local LOCAL_PLAYER = Players.LocalPlayer
 
@@ -33,32 +22,30 @@ local LOCAL_PLAYER = Players.LocalPlayer
 -- [02] 常量定义
 --================================================================================
 
-local LIBRARY_NAME   = "Snow"
+local LIBRARY_NAME    = "Snow"
 local LIBRARY_VERSION = "1.0.0"
 
-local FONT       = Enum.Font.GothamMedium
-local FONT_BOLD  = Enum.Font.GothamBold
+local FONT      = Enum.Font.GothamMedium
+local FONT_BOLD = Enum.Font.GothamBold
 
-local ROW_HEIGHT   = 36
-local WINDOW_RADIUS = 10
-local ELEMENT_RADIUS = 6
+local ROW_HEIGHT      = 36
+local WINDOW_RADIUS   = 10
+local ELEMENT_RADIUS  = 6
 
 local ANIM_FAST   = 0.12
 local ANIM_NORMAL = 0.18
 local ANIM_SLOW   = 0.28
 
+-- 设备类型检测
+local IS_MOBILE = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+
 --================================================================================
 -- [03] 工具函数
 --================================================================================
 
---- 创建一个 Instance 并批量赋值属性
--- @param className string
--- @param properties table?
--- @return Instance
 local function Create(className, properties)
 	local instance = Instance.new(className)
 	local parent = nil
-
 	for property, value in pairs(properties or {}) do
 		if property == "Parent" then
 			parent = value
@@ -66,15 +53,12 @@ local function Create(className, properties)
 			instance[property] = value
 		end
 	end
-
 	if parent then
 		instance.Parent = parent
 	end
-
 	return instance
 end
 
---- 为实例添加 UICorner
 local function AddCorner(instance, radius)
 	return Create("UICorner", {
 		CornerRadius = UDim.new(0, radius or ELEMENT_RADIUS),
@@ -82,7 +66,6 @@ local function AddCorner(instance, radius)
 	})
 end
 
---- 为实例添加 UIStroke
 local function AddStroke(instance, color, thickness, transparency)
 	return Create("UIStroke", {
 		Color = color,
@@ -93,7 +76,6 @@ local function AddStroke(instance, color, thickness, transparency)
 	})
 end
 
---- 执行补间动画
 local function Tween(instance, properties, duration, style, direction)
 	local info = TweenInfo.new(
 		duration or ANIM_NORMAL,
@@ -105,39 +87,44 @@ local function Tween(instance, properties, duration, style, direction)
 	return tweenObject
 end
 
---- 数值四舍五入
 local function Round(value, decimals)
 	local multiplier = 10 ^ (decimals or 0)
 	return math.floor(value * multiplier + 0.5) / multiplier
 end
 
---- 获取一个安全的 GUI 父容器
 local function GetGuiParent()
-	-- 优先使用执行器提供的 gethui（若存在）
 	if typeof(gethui) == "function" then
 		local success, result = pcall(gethui)
 		if success and result then
 			return result
 		end
 	end
-
-	-- 其次使用 PlayerGui
 	if LOCAL_PLAYER then
 		local playerGui = LOCAL_PLAYER:FindFirstChildOfClass("PlayerGui")
 		if playerGui then
 			return playerGui
 		end
 	end
-
-	-- 兜底
 	return CoreGui
 end
 
---- 限制窗口位置，避免拖出屏幕
-local function ClampToViewport(position, viewportSize, objectSize)
-	local x = math.clamp(position.X.Offset, -objectSize.X + 80, viewportSize.X - 80)
-	local y = math.clamp(position.Y.Offset, 0, viewportSize.Y - 40)
-	return UDim2.new(position.X.Scale, x, position.Y.Scale, y)
+local function GetViewportSize()
+	local camera = workspace.CurrentCamera
+	if camera then
+		return camera.ViewportSize
+	end
+	return Vector2.new(800, 600)
+end
+
+-- 判断输入类型是否可用于交互（鼠标或触摸）
+local function IsInteractiveInput(input)
+	return input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function IsMovementInput(input)
+	return input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch
 end
 
 --================================================================================
@@ -169,7 +156,6 @@ Snow.Themes = {
 		Success       = Color3.fromRGB(104, 216, 156),
 		Warning       = Color3.fromRGB(240, 188, 96),
 	},
-
 	Light = {
 		Background    = Color3.fromRGB(240, 243, 249),
 		Surface       = Color3.fromRGB(255, 255, 255),
@@ -201,7 +187,6 @@ local NotificationModule = {
 	Active = {},
 }
 
---- 初始化通知容器
 function NotificationModule:Init()
 	if self.Gui and self.Gui.Parent then
 		return
@@ -216,13 +201,17 @@ function NotificationModule:Init()
 	})
 	self.Gui.Parent = GetGuiParent()
 
+	-- 手机端收窄
+	local viewport = GetViewportSize()
+	local width = math.min(300, viewport.X - 40)
+
 	self.Container = Create("Frame", {
 		Name = "Container",
 		Parent = self.Gui,
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -20, 0, 20),
-		Size = UDim2.new(0, 300, 0, 0),
+		Position = UDim2.new(1, -16, 0, 16),
+		Size = UDim2.new(0, width, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 	})
 
@@ -233,7 +222,6 @@ function NotificationModule:Init()
 	})
 end
 
---- 推送一条通知
 function NotificationModule:Push(config)
 	self:Init()
 
@@ -251,12 +239,10 @@ function NotificationModule:Push(config)
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = 1,
 	})
-
 	AddCorner(card, 8)
 
 	local stroke = AddStroke(card, theme.Border, 1, 1)
 
-	-- 左侧强调条
 	local accentBar = Create("Frame", {
 		Parent = card,
 		BackgroundColor3 = accent,
@@ -300,7 +286,6 @@ function NotificationModule:Push(config)
 		PaddingBottom = UDim.new(0, 12),
 	})
 
-	-- 淡入
 	Tween(card, { BackgroundTransparency = 0 }, ANIM_NORMAL)
 	Tween(accentBar, { BackgroundTransparency = 0 }, ANIM_NORMAL)
 	Tween(stroke, { Transparency = 0 }, ANIM_NORMAL)
@@ -309,18 +294,15 @@ function NotificationModule:Push(config)
 
 	table.insert(self.Active, card)
 
-	-- 自动移除
 	task.delay(duration, function()
 		if not card.Parent then
 			return
 		end
-
 		Tween(card, { BackgroundTransparency = 1 }, ANIM_SLOW)
 		Tween(accentBar, { BackgroundTransparency = 1 }, ANIM_SLOW)
 		Tween(stroke, { Transparency = 1 }, ANIM_SLOW)
 		Tween(titleLabel, { TextTransparency = 1 }, ANIM_SLOW)
 		Tween(contentLabel, { TextTransparency = 1 }, ANIM_SLOW)
-
 		task.wait(ANIM_SLOW + 0.05)
 		card:Destroy()
 	end)
@@ -329,13 +311,19 @@ function NotificationModule:Push(config)
 end
 
 --================================================================================
+-- [05.5] 类前向声明（必须在 Window 之前）
+--================================================================================
+
+local Tab = {}
+local Section = {}
+
+--================================================================================
 -- [06] Window 类
 --================================================================================
 
 local Window = {}
 Window.__index = Window
 
---- 创建一个新窗口（由 Snow:CreateWindow 调用）
 function Window.new(library, config)
 	config = config or {}
 
@@ -343,39 +331,63 @@ function Window.new(library, config)
 	local theme = library.Themes[themeName] or library.Themes.Dark
 
 	local self = setmetatable({
-		Library     = library,
-		Title       = config.Title or "Snow",
-		Subtitle    = config.Subtitle or ("v" .. LIBRARY_VERSION),
-		ThemeName   = themeName,
-		Theme       = theme,
+		Library      = library,
+		Title        = config.Title or "Snow",
+		Subtitle     = config.Subtitle or ("v" .. LIBRARY_VERSION),
+		ThemeName    = themeName,
+		Theme        = theme,
 
-		Size        = config.Size or UDim2.fromOffset(620, 430),
-		ToggleKey   = config.ToggleKey or Enum.KeyCode.RightShift,
+		Size         = config.Size,
+		ToggleKey    = config.ToggleKey or Enum.KeyCode.RightShift,
 		CloseCallback = config.CloseCallback,
 
-		Tabs        = {},
-		Flags       = {},
-		ActiveTab   = nil,
+		Tabs         = {},
+		Flags        = {},
+		ActiveTab    = nil,
 
 		_connections = {},
 		_dragging    = false,
 		_minimized   = false,
 		_destroyed   = false,
+		_isMobile    = IS_MOBILE,
 	}, Window)
 
+	self:_calculateSize()
 	self:_buildGui()
-	self:_bindWindowControls()
 	self:_bindDragging()
 	self:_bindToggleKey()
 
 	return self
 end
 
---- 构建整个窗口 UI
+-- 根据屏幕自动计算窗口尺寸（移动端适配关键）
+function Window:_calculateSize()
+	local viewport = GetViewportSize()
+
+	if self.Size then
+		-- 用户指定了尺寸，但仍要保证不溢出屏幕
+		local sizeX = math.min(self.Size.X.Offset, viewport.X - 20)
+		local sizeY = math.min(self.Size.Y.Offset, viewport.Y - 20)
+		self._finalSize = UDim2.fromOffset(sizeX, sizeY)
+		return
+	end
+
+	if self._isMobile then
+		-- 移动端：占屏幕 92% 宽、72% 高
+		local width  = math.clamp(viewport.X * 0.92, 260, 560)
+		local height = math.clamp(viewport.Y * 0.72, 340, 520)
+		self._finalSize = UDim2.fromOffset(width, height)
+	else
+		-- PC：根据屏幕大小自适应
+		local width  = math.clamp(viewport.X * 0.42, 520, 720)
+		local height = math.clamp(viewport.Y * 0.62, 380, 520)
+		self._finalSize = UDim2.fromOffset(width, height)
+	end
+end
+
 function Window:_buildGui()
 	local theme = self.Theme
 
-	-- // ScreenGui
 	self.ScreenGui = Create("ScreenGui", {
 		Name = "SnowUI_" .. LIBRARY_VERSION,
 		ResetOnSpawn = false,
@@ -391,22 +403,28 @@ function Window:_buildGui()
 		Parent = self.ScreenGui,
 		BackgroundColor3 = theme.Surface,
 		BorderSizePixel = 0,
-		Size = self.Size,
+		Size = self._finalSize,
 		Position = UDim2.new(0.5, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ClipsDescendants = true,
+		Active = true,
 	})
 
 	AddCorner(self.Root, WINDOW_RADIUS)
 	AddStroke(self.Root, theme.Border, 1)
+
+	-- 移动端标题栏稍高，方便手指触摸
+	local titleBarHeight = self._isMobile and 52 or 46
+	local sidebarWidth   = self._isMobile and 110 or 150
 
 	-- // 标题栏
 	local titleBar = Create("Frame", {
 		Name = "TitleBar",
 		Parent = self.Root,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 46),
+		Size = UDim2.new(1, 0, 0, titleBarHeight),
 		Position = UDim2.new(0, 0, 0, 0),
+		Active = true,
 	})
 	self.TitleBar = titleBar
 
@@ -415,10 +433,10 @@ function Window:_buildGui()
 		BackgroundTransparency = 1,
 		Text = self.Title,
 		Font = FONT_BOLD,
-		TextSize = 15,
+		TextSize = self._isMobile and 16 or 15,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Position = UDim2.new(0, 16, 0, 7),
+		Position = UDim2.new(0, 16, 0, self._isMobile and 8 or 7),
 		Size = UDim2.new(1, -120, 0, 18),
 	})
 
@@ -430,11 +448,13 @@ function Window:_buildGui()
 		TextSize = 11,
 		TextColor3 = theme.TextMuted,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Position = UDim2.new(0, 16, 0, 25),
+		Position = UDim2.new(0, 16, 0, self._isMobile and 28 or 25),
 		Size = UDim2.new(1, -120, 0, 14),
 	})
 
-	-- // 窗口按钮（关闭 / 最小化）
+	-- // 窗口按钮
+	local btnSize = self._isMobile and 32 or 26
+
 	local function makeWindowButton(symbol, offsetX, hoverColor, callback)
 		local button = Create("TextButton", {
 			Parent = titleBar,
@@ -446,7 +466,7 @@ function Window:_buildGui()
 			TextSize = 13,
 			TextColor3 = theme.TextMuted,
 			AutoButtonColor = false,
-			Size = UDim2.new(0, 26, 0, 26),
+			Size = UDim2.new(0, btnSize, 0, btnSize),
 			Position = UDim2.new(1, offsetX, 0.5, 0),
 			AnchorPoint = Vector2.new(1, 0.5),
 		})
@@ -481,7 +501,7 @@ function Window:_buildGui()
 		end
 	end)
 
-	makeWindowButton("－", -46, theme.SurfaceHover, function()
+	makeWindowButton("－", -(btnSize + 8), theme.SurfaceHover, function()
 		self:Toggle()
 	end)
 
@@ -491,8 +511,8 @@ function Window:_buildGui()
 		Parent = self.Root,
 		BackgroundColor3 = theme.Background,
 		BorderSizePixel = 0,
-		Size = UDim2.new(0, 150, 1, -46),
-		Position = UDim2.new(0, 0, 0, 46),
+		Size = UDim2.new(0, sidebarWidth, 1, -titleBarHeight),
+		Position = UDim2.new(0, 0, 0, titleBarHeight),
 	})
 	self.Sidebar = sidebar
 
@@ -515,8 +535,8 @@ function Window:_buildGui()
 
 	Create("UIPadding", {
 		Parent = self.TabList,
-		PaddingLeft = UDim.new(0, 10),
-		PaddingRight = UDim.new(0, 10),
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
 	})
 
 	-- // 内容区
@@ -524,94 +544,119 @@ function Window:_buildGui()
 		Name = "Content",
 		Parent = self.Root,
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -150, 1, -46),
-		Position = UDim2.new(0, 150, 0, 46),
+		Size = UDim2.new(1, -sidebarWidth, 1, -titleBarHeight),
+		Position = UDim2.new(0, sidebarWidth, 0, titleBarHeight),
 	})
+
+	-- // 浮动雪花按钮（用于恢复窗口）
+	self.FloatButton = Create("TextButton", {
+		Parent = self.ScreenGui,
+		BackgroundColor3 = theme.Accent,
+		BorderSizePixel = 0,
+		Text = "❄",
+		Font = FONT_BOLD,
+		TextSize = 24,
+		TextColor3 = Color3.new(1, 1, 1),
+		AutoButtonColor = false,
+		Size = UDim2.new(0, 52, 0, 52),
+		Position = UDim2.new(0, 20, 0.5, -26),
+		Visible = false,
+	})
+	AddCorner(self.FloatButton, 26)
+
+	self.FloatButton.MouseButton1Click:Connect(function()
+		self:Toggle()
+	end)
+
+	self.FloatButton.MouseEnter:Connect(function()
+		Tween(self.FloatButton, { BackgroundColor3 = theme.AccentHover }, ANIM_FAST)
+	end)
+	self.FloatButton.MouseLeave:Connect(function()
+		Tween(self.FloatButton, { BackgroundColor3 = theme.Accent }, ANIM_FAST)
+	end)
 end
 
---- 绑定窗口控制相关逻辑
-function Window:_bindWindowControls()
-	-- 预留：缩放、贴边等高级功能
-end
-
---- 绑定标题栏拖拽
+-- 拖拽：鼠标 + 触摸 双兼容（重写版）
 function Window:_bindDragging()
 	local dragging = false
+	local dragInput = nil
 	local dragStart = nil
 	local startPosition = nil
 
-	local function beginDrag(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and input.UserInputType ~= Enum.UserInputType.Touch then
+	local function updateDrag(input)
+		local delta = input.Position - dragStart
+
+		-- 边界限制：不能完全拖出屏幕
+		local viewport = GetViewportSize()
+		local windowSize = self.Root.AbsoluteSize
+
+		local newX = startPosition.X.Offset + delta.X
+		local newY = startPosition.Y.Offset + delta.Y
+
+		local minX = -(windowSize.X / 2) + 40
+		local maxX = viewport.X - (windowSize.X / 2) - 40
+		local minY = -(windowSize.Y / 2) + 20
+		local maxY = viewport.Y - (windowSize.Y / 2) - 20
+
+		newX = math.clamp(newX, minX, maxX)
+		newY = math.clamp(newY, minY, maxY)
+
+		self.Root.Position = UDim2.new(
+			startPosition.X.Scale, newX,
+			startPosition.Y.Scale, newY
+		)
+	end
+
+	self.TitleBar.InputBegan:Connect(function(input)
+		if not IsInteractiveInput(input) then
 			return
 		end
 
 		dragging = true
+		dragInput = input
 		dragStart = input.Position
 		startPosition = self.Root.Position
 
-		local connection
-		connection = input.Changed:Connect(function()
+		input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
-				if connection then
-					connection:Disconnect()
-				end
+				dragInput = nil
 			end
 		end)
-	end
+	end)
 
-	self.TitleBar.InputBegan:Connect(beginDrag)
+	self.TitleBar.InputChanged:Connect(function(input)
+		if IsMovementInput(input) then
+			dragInput = input
+		end
+	end)
 
 	table.insert(self._connections, UserInputService.InputChanged:Connect(function(input)
-		if not dragging then
-			return
-		end
-
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement
-			and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
-
-		local delta = input.Position - dragStart
-		self.Root.Position = UDim2.new(
-			startPosition.X.Scale,
-			startPosition.X.Offset + delta.X,
-			startPosition.Y.Scale,
-			startPosition.Y.Offset + delta.Y
-		)
+		if not dragging then return end
+		if not IsMovementInput(input) then return end
+		if input ~= dragInput then return end
+		updateDrag(input)
 	end))
 end
 
---- 绑定快捷键显示/隐藏
 function Window:_bindToggleKey()
 	table.insert(self._connections, UserInputService.InputBegan:Connect(function(input, processed)
-		if processed then
-			return
-		end
-
+		if processed then return end
 		if self.ToggleKey and input.KeyCode == self.ToggleKey then
 			self:Toggle()
 		end
 	end))
 end
 
---- 显示 / 隐藏窗口
 function Window:Toggle()
-	if self._destroyed then
-		return
-	end
-
+	if self._destroyed then return end
 	self._minimized = not self._minimized
 	self.Root.Visible = not self._minimized
+	self.FloatButton.Visible = self._minimized
 end
 
---- 销毁窗口
 function Window:Destroy()
-	if self._destroyed then
-		return
-	end
-
+	if self._destroyed then return end
 	self._destroyed = true
 
 	for _, connection in ipairs(self._connections) do
@@ -619,7 +664,6 @@ function Window:Destroy()
 			connection:Disconnect()
 		end
 	end
-
 	self._connections = {}
 
 	if self.ScreenGui then
@@ -628,7 +672,6 @@ function Window:Destroy()
 	end
 end
 
---- 创建一个标签页
 function Window:CreateTab(config)
 	config = type(config) == "string" and { Name = config } or (config or {})
 
@@ -643,7 +686,6 @@ function Window:CreateTab(config)
 		Pages   = {},
 	}, Tab)
 
-	-- // 标签按钮
 	local button = Create("TextButton", {
 		Parent = self.TabList,
 		BackgroundColor3 = theme.Surface,
@@ -651,10 +693,9 @@ function Window:CreateTab(config)
 		BorderSizePixel = 0,
 		Text = "",
 		AutoButtonColor = false,
-		Size = UDim2.new(1, 0, 0, 32),
+		Size = UDim2.new(1, 0, 0, self._isMobile and 36 or 32),
 		LayoutOrder = #self.Tabs + 1,
 	})
-
 	AddCorner(button, ELEMENT_RADIUS)
 
 	local indicator = Create("Frame", {
@@ -672,9 +713,10 @@ function Window:CreateTab(config)
 		BackgroundTransparency = 1,
 		Text = name,
 		Font = FONT,
-		TextSize = 13,
+		TextSize = self._isMobile and 14 or 13,
 		TextColor3 = theme.TextMuted,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.new(0, 14, 0, 0),
 		Size = UDim2.new(1, -18, 1, 0),
 	})
@@ -698,7 +740,6 @@ function Window:CreateTab(config)
 		self:SelectTab(tab)
 	end)
 
-	-- // 页面容器
 	local page = Create("ScrollingFrame", {
 		Parent = self.Content,
 		BackgroundTransparency = 1,
@@ -733,7 +774,6 @@ function Window:CreateTab(config)
 
 	table.insert(self.Tabs, tab)
 
-	-- 第一个标签页自动选中
 	if #self.Tabs == 1 then
 		self:SelectTab(tab)
 	end
@@ -741,15 +781,11 @@ function Window:CreateTab(config)
 	return tab
 end
 
---- 选中指定标签页
 function Window:SelectTab(tab)
-	if not tab or self.ActiveTab == tab then
-		return
-	end
+	if not tab or self.ActiveTab == tab then return end
 
 	local theme = self.Theme
 
-	-- 取消旧标签
 	if self.ActiveTab then
 		local old = self.ActiveTab
 		Tween(old.Button, { BackgroundTransparency = 1 }, ANIM_FAST)
@@ -764,19 +800,16 @@ function Window:SelectTab(tab)
 		BackgroundTransparency = 0,
 		BackgroundColor3 = theme.SurfaceAlt,
 	}, ANIM_FAST)
-
 	Tween(tab.Label, { TextColor3 = theme.Text }, ANIM_FAST)
 	Tween(tab.Indicator, { Size = UDim2.new(0, 3, 0, 18) }, ANIM_NORMAL)
 
 	tab.Page.Visible = true
 end
 
---- 读取 Flag 值
 function Window:GetFlag(flag)
 	return self.Flags[flag]
 end
 
---- 设置 Flag 值（不会触发回调）
 function Window:SetFlag(flag, value)
 	self.Flags[flag] = value
 end
@@ -785,10 +818,8 @@ end
 -- [07] Tab 类
 --================================================================================
 
-local Tab = {}
 Tab.__index = Tab
 
---- 在标签页内创建一个分组
 function Tab:CreateSection(name)
 	name = name or "Section"
 
@@ -800,6 +831,7 @@ function Tab:CreateSection(name)
 		Window  = self.Window,
 		Library = self.Library,
 		Theme   = theme,
+		_order  = 0,
 	}, Section)
 
 	local container = Create("Frame", {
@@ -843,9 +875,8 @@ function Tab:CreateSection(name)
 	})
 
 	section.Container = container
-	section.Header = header
-	section.Body = body
-	section._order = 0
+	section.Header    = header
+	section.Body      = body
 
 	return section
 end
@@ -854,16 +885,13 @@ end
 -- [08] Section 类
 --================================================================================
 
-local Section = {}
 Section.__index = Section
 
---- 内部：生成下一个 LayoutOrder
 function Section:_nextOrder()
 	self._order = self._order + 1
 	return self._order
 end
 
---- 内部：创建一个行容器
 function Section:_createRow(height, order)
 	return Create("Frame", {
 		Parent = self.Body,
@@ -873,16 +901,10 @@ function Section:_createRow(height, order)
 	})
 end
 
---------------------------------------------------------------------------------
 -- 按钮
---------------------------------------------------------------------------------
-
 function Section:CreateButton(config)
 	config = config or {}
-
 	local theme = self.Theme
-	local window = self.Window
-
 	local text = config.Name or "Button"
 
 	local button = Create("TextButton", {
@@ -896,26 +918,22 @@ function Section:CreateButton(config)
 		AutoButtonColor = false,
 		Size = UDim2.new(1, 0, 0, ROW_HEIGHT),
 		LayoutOrder = self:_nextOrder(),
+		Active = true,
 	})
-
 	AddCorner(button, ELEMENT_RADIUS)
 
 	button.MouseEnter:Connect(function()
 		Tween(button, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 	end)
-
 	button.MouseLeave:Connect(function()
 		Tween(button, { BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
 	end)
-
 	button.MouseButton1Down:Connect(function()
 		Tween(button, { BackgroundColor3 = theme.AccentPressed }, ANIM_FAST)
 	end)
-
 	button.MouseButton1Up:Connect(function()
 		Tween(button, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 	end)
-
 	button.MouseButton1Click:Connect(function()
 		if config.Callback then
 			task.spawn(config.Callback)
@@ -923,38 +941,27 @@ function Section:CreateButton(config)
 	end)
 
 	local api = {}
-
-	function api:SetText(value)
-		button.Text = tostring(value)
-	end
-
+	function api:SetText(value) button.Text = tostring(value) end
 	function api:SetEnabled(state)
 		button.Active = state and true or false
 		button.TextColor3 = state and theme.Text or theme.TextDisabled
 	end
-
 	api.Instance = button
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 开关
---------------------------------------------------------------------------------
-
 function Section:CreateToggle(config)
 	config = config or {}
-
 	local theme = self.Theme
 	local window = self.Window
-
 	local name = config.Name or "Toggle"
 	local flag = config.Flag
 	local value = config.Default and true or false
 
 	local row = self:_createRow(ROW_HEIGHT)
 
-	local label = Create("TextLabel", {
+	Create("TextLabel", {
 		Parent = row,
 		BackgroundTransparency = 1,
 		Text = name,
@@ -962,11 +969,11 @@ function Section:CreateToggle(config)
 		TextSize = 14,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, -60, 1, 0),
 		ZIndex = 2,
 	})
 
-	-- 开关底座
 	local switch = Create("Frame", {
 		Parent = row,
 		BackgroundColor3 = value and theme.Accent or theme.SurfaceAlt,
@@ -978,7 +985,6 @@ function Section:CreateToggle(config)
 	})
 	AddCorner(switch, 11)
 
-	-- 滑块
 	local knob = Create("Frame", {
 		Parent = switch,
 		BackgroundColor3 = value and Color3.new(1, 1, 1) or theme.TextDisabled,
@@ -989,7 +995,6 @@ function Section:CreateToggle(config)
 	})
 	AddCorner(knob, 8)
 
-	-- 点击热区（覆盖整行）
 	local hitbox = Create("TextButton", {
 		Parent = row,
 		BackgroundTransparency = 1,
@@ -997,6 +1002,7 @@ function Section:CreateToggle(config)
 		AutoButtonColor = false,
 		Size = UDim2.new(1, 0, 1, 0),
 		ZIndex = 3,
+		Active = true,
 	})
 
 	local function setValue(newValue, fireCallback)
@@ -1006,16 +1012,12 @@ function Section:CreateToggle(config)
 		Tween(switch, {
 			BackgroundColor3 = value and theme.Accent or theme.SurfaceAlt,
 		}, ANIM_NORMAL)
-
 		Tween(knob, {
 			Position = value and UDim2.new(0, 21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
 			BackgroundColor3 = value and Color3.new(1, 1, 1) or theme.TextDisabled,
 		}, ANIM_NORMAL, Enum.EasingStyle.Back)
 
-		if flag then
-			window.Flags[flag] = value
-		end
-
+		if flag then window.Flags[flag] = value end
 		if fireCallback and config.Callback then
 			task.spawn(config.Callback, value)
 		end
@@ -1024,46 +1026,29 @@ function Section:CreateToggle(config)
 	hitbox.MouseButton1Click:Connect(function()
 		setValue(not value, true)
 	end)
-
 	hitbox.MouseEnter:Connect(function()
 		if not value then
 			Tween(switch, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 		end
 	end)
-
 	hitbox.MouseLeave:Connect(function()
 		if not value then
 			Tween(switch, { BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
 		end
 	end)
 
-	-- 初始化 Flag
-	if flag then
-		window.Flags[flag] = value
-	end
+	if flag then window.Flags[flag] = value end
 
 	local api = {}
-
-	function api:Set(value, fireCallback)
-		setValue(value, fireCallback)
-	end
-
-	function api:Get()
-		return value
-	end
-
+	function api:Set(v, fire) setValue(v, fire) end
+	function api:Get() return value end
 	api.Instance = row
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 滑块
---------------------------------------------------------------------------------
-
 function Section:CreateSlider(config)
 	config = config or {}
-
 	local theme = self.Theme
 	local window = self.Window
 
@@ -1075,16 +1060,13 @@ function Section:CreateSlider(config)
 	local suffix   = config.Suffix or ""
 	local prefix   = config.Prefix or ""
 
-	if max <= min then
-		max = min + 1
-	end
+	if max <= min then max = min + 1 end
 
-	local value = config.Default or min
-	value = math.clamp(value, min, max)
+	local value = math.clamp(config.Default or min, min, max)
 
-	local row = self:_createRow(46)
+	local row = self:_createRow(48)
 
-	local label = Create("TextLabel", {
+	Create("TextLabel", {
 		Parent = row,
 		BackgroundTransparency = 1,
 		Text = name,
@@ -1092,6 +1074,7 @@ function Section:CreateSlider(config)
 		TextSize = 14,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Position = UDim2.new(0, 0, 0, 0),
 		Size = UDim2.new(1, -80, 0, 18),
 	})
@@ -1108,17 +1091,17 @@ function Section:CreateSlider(config)
 		Size = UDim2.new(0, 80, 0, 18),
 	})
 
-	-- 交互区域（比视觉轨道更高，方便点击）
+	-- 加大触摸热区高度
 	local trackArea = Create("TextButton", {
 		Parent = row,
 		BackgroundTransparency = 1,
 		Text = "",
 		AutoButtonColor = false,
-		Position = UDim2.new(0, 0, 0, 26),
-		Size = UDim2.new(1, 0, 0, 14),
+		Position = UDim2.new(0, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 20),
+		Active = true,
 	})
 
-	-- 视觉轨道
 	local track = Create("Frame", {
 		Parent = trackArea,
 		BackgroundColor3 = theme.SurfaceAlt,
@@ -1129,7 +1112,6 @@ function Section:CreateSlider(config)
 	})
 	AddCorner(track, 3)
 
-	-- 填充
 	local fill = Create("Frame", {
 		Parent = track,
 		BackgroundColor3 = theme.Accent,
@@ -1144,124 +1126,80 @@ function Section:CreateSlider(config)
 		local relative = (x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1)
 		relative = math.clamp(relative, 0, 1)
 
-		local newValue = min + (max - min) * relative
-		newValue = Round(newValue, decimals)
+		local newValue = Round(min + (max - min) * relative, decimals)
 		newValue = math.clamp(newValue, min, max)
 
-		if newValue == value then
-			return
-		end
-
+		if newValue == value then return end
 		value = newValue
 
 		local alpha = (value - min) / (max - min)
 		fill.Size = UDim2.new(alpha, 0, 1, 0)
 		valueLabel.Text = prefix .. tostring(Round(value, decimals)) .. suffix
 
-		if flag then
-			window.Flags[flag] = value
-		end
-
-		if config.Callback then
-			task.spawn(config.Callback, value)
-		end
+		if flag then window.Flags[flag] = value end
+		if config.Callback then task.spawn(config.Callback, value) end
 	end
 
 	local function setValue(newValue, fireCallback)
-		newValue = math.clamp(newValue, min, max)
-		newValue = Round(newValue, decimals)
-
+		newValue = Round(math.clamp(newValue, min, max), decimals)
 		value = newValue
 
 		local alpha = (value - min) / (max - min)
 		Tween(fill, { Size = UDim2.new(alpha, 0, 1, 0) }, ANIM_FAST)
 		valueLabel.Text = prefix .. tostring(Round(value, decimals)) .. suffix
 
-		if flag then
-			window.Flags[flag] = value
-		end
-
-		if fireCallback and config.Callback then
-			task.spawn(config.Callback, value)
-		end
+		if flag then window.Flags[flag] = value end
+		if fireCallback and config.Callback then task.spawn(config.Callback, value) end
 	end
 
 	trackArea.InputBegan:Connect(function(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1
-			and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
+		if not IsInteractiveInput(input) then return end
 
 		dragging = true
 		updateFromX(input.Position.X)
 
-		local connection
-		connection = input.Changed:Connect(function()
+		input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
-				if connection then
-					connection:Disconnect()
-				end
 			end
 		end)
 	end)
 
-	table.insert(window._connections, UserInputService.InputChanged:Connect(function(input)
-		if not dragging then
-			return
-		end
-
-		if input.UserInputType == Enum.UserInputType.MouseMovement
-			or input.UserInputType == Enum.UserInputType.Touch then
+	trackArea.InputChanged:Connect(function(input)
+		if dragging and IsMovementInput(input) then
 			updateFromX(input.Position.X)
 		end
-	end))
+	end)
 
 	trackArea.MouseEnter:Connect(function()
 		Tween(track, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 	end)
-
 	trackArea.MouseLeave:Connect(function()
 		Tween(track, { BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
 	end)
 
-	-- 初始化显示
 	local initialAlpha = (value - min) / (max - min)
 	fill.Size = UDim2.new(initialAlpha, 0, 1, 0)
 
-	if flag then
-		window.Flags[flag] = value
-	end
+	if flag then window.Flags[flag] = value end
 
 	local api = {}
-
-	function api:Set(newValue, fireCallback)
-		setValue(newValue, fireCallback)
-	end
-
-	function api:Get()
-		return value
-	end
-
+	function api:Set(v, fire) setValue(v, fire) end
+	function api:Get() return value end
 	api.Instance = row
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 输入框
---------------------------------------------------------------------------------
-
 function Section:CreateInput(config)
 	config = config or {}
-
 	local theme = self.Theme
 	local window = self.Window
 
-	local name        = config.Name or "Input"
+	local name = config.Name or "Input"
 	local placeholder = config.Placeholder or "请输入..."
-	local flag        = config.Flag
-	local default     = config.Default or ""
+	local flag = config.Flag
+	local default = config.Default or ""
 
 	local row = self:_createRow(ROW_HEIGHT)
 
@@ -1273,6 +1211,7 @@ function Section:CreateInput(config)
 		TextSize = 14,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, -160, 1, 0),
 	})
 
@@ -1291,8 +1230,8 @@ function Section:CreateInput(config)
 		Size = UDim2.new(0, 150, 0, 28),
 		Position = UDim2.new(1, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
+		Active = true,
 	})
-
 	AddCorner(box, ELEMENT_RADIUS)
 
 	Create("UIPadding", {
@@ -1307,60 +1246,35 @@ function Section:CreateInput(config)
 		Tween(stroke, { Color = theme.Accent }, ANIM_FAST)
 		Tween(box, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 	end)
-
 	box.FocusLost:Connect(function(enterPressed)
 		Tween(stroke, { Color = theme.Border }, ANIM_FAST)
 		Tween(box, { BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
 
-		if flag then
-			window.Flags[flag] = box.Text
-		end
-
-		if config.Callback then
-			task.spawn(config.Callback, box.Text, enterPressed)
-		end
+		if flag then window.Flags[flag] = box.Text end
+		if config.Callback then task.spawn(config.Callback, box.Text, enterPressed) end
 	end)
 
-	if flag then
-		window.Flags[flag] = default
-	end
+	if flag then window.Flags[flag] = default end
 
 	local api = {}
-
-	function api:Set(value)
-		box.Text = tostring(value)
-		if flag then
-			window.Flags[flag] = box.Text
-		end
-	end
-
-	function api:Get()
-		return box.Text
-	end
-
+	function api:Set(v) box.Text = tostring(v); if flag then window.Flags[flag] = box.Text end end
+	function api:Get() return box.Text end
 	api.Instance = box
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 下拉框
---------------------------------------------------------------------------------
-
 function Section:CreateDropdown(config)
 	config = config or {}
-
 	local theme = self.Theme
 	local window = self.Window
 
-	local name    = config.Name or "Dropdown"
+	local name = config.Name or "Dropdown"
 	local options = config.Options or {}
-	local flag    = config.Flag
+	local flag = config.Flag
 
 	local current = config.Default
-	if current == nil and #options > 0 then
-		current = options[1]
-	end
+	if current == nil and #options > 0 then current = options[1] end
 
 	local row = Create("Frame", {
 		Parent = self.Body,
@@ -1375,6 +1289,7 @@ function Section:CreateDropdown(config)
 		Text = "",
 		AutoButtonColor = false,
 		Size = UDim2.new(1, 0, 0, ROW_HEIGHT),
+		Active = true,
 	})
 
 	Create("TextLabel", {
@@ -1385,6 +1300,7 @@ function Section:CreateDropdown(config)
 		TextSize = 14,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, -160, 1, 0),
 	})
 
@@ -1434,6 +1350,7 @@ function Section:CreateDropdown(config)
 		ScrollBarThickness = 3,
 		ScrollBarImageColor3 = theme.Border,
 		ScrollBarImageTransparency = 0.3,
+		ZIndex = 5,
 	})
 	AddCorner(list, ELEMENT_RADIUS)
 
@@ -1452,10 +1369,25 @@ function Section:CreateDropdown(config)
 	})
 
 	local open = false
-
 	local optionButtons = {}
 
-	for index, option in ipairs(options) do
+	local function closeList()
+		open = false
+		list.Visible = false
+		list.Size = UDim2.new(1, 0, 0, 0)
+		row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
+		arrow.Text = "▼"
+	end
+
+	local function selectOption(option)
+		current = option
+		valueLabel.Text = tostring(option)
+		if flag then window.Flags[flag] = option end
+		if config.Callback then task.spawn(config.Callback, option) end
+		closeList()
+	end
+
+	local function buildOption(option, index)
 		local optionButton = Create("TextButton", {
 			Parent = list,
 			BackgroundColor3 = theme.Accent,
@@ -1467,8 +1399,9 @@ function Section:CreateDropdown(config)
 			TextColor3 = theme.Text,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			AutoButtonColor = false,
-			Size = UDim2.new(1, 0, 0, 26),
+			Size = UDim2.new(1, 0, 0, 28),
 			LayoutOrder = index,
+			Active = true,
 		})
 		AddCorner(optionButton, 4)
 
@@ -1478,161 +1411,79 @@ function Section:CreateDropdown(config)
 		})
 
 		optionButton.MouseEnter:Connect(function()
-			Tween(optionButton, { BackgroundTransparency = 0, BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
+			Tween(optionButton, {
+				BackgroundTransparency = 0,
+				BackgroundColor3 = theme.SurfaceAlt,
+			}, ANIM_FAST)
 		end)
-
 		optionButton.MouseLeave:Connect(function()
 			Tween(optionButton, { BackgroundTransparency = 1 }, ANIM_FAST)
 		end)
-
 		optionButton.MouseButton1Click:Connect(function()
-			current = option
-			valueLabel.Text = tostring(option)
-
-			if flag then
-				window.Flags[flag] = option
-			end
-
-			if config.Callback then
-				task.spawn(config.Callback, option)
-			end
-
-			-- 关闭列表
-			open = false
-			list.Visible = false
-			list.Size = UDim2.new(1, 0, 0, 0)
-			row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-			arrow.Text = "▼"
+			selectOption(option)
 		end)
 
-		optionButtons[index] = optionButton
+		return optionButton
+	end
+
+	for index, option in ipairs(options) do
+		optionButtons[index] = buildOption(option, index)
 	end
 
 	local function toggleList()
 		open = not open
-
 		if open then
-			local listHeight = math.min(#options * 28 + 8, 180)
+			local listHeight = math.min(#options * 30 + 8, 180)
 			list.Visible = true
 			list.Size = UDim2.new(1, 0, 0, listHeight)
 			row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT + listHeight + 6)
 			arrow.Text = "▲"
 		else
-			list.Visible = false
-			list.Size = UDim2.new(1, 0, 0, 0)
-			row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-			arrow.Text = "▼"
+			closeList()
 		end
 	end
 
 	header.MouseButton1Click:Connect(toggleList)
-
 	header.MouseEnter:Connect(function()
 		Tween(valueBox, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 	end)
-
 	header.MouseLeave:Connect(function()
 		Tween(valueBox, { BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
 	end)
 
-	if flag then
-		window.Flags[flag] = current
-	end
+	if flag then window.Flags[flag] = current end
 
 	local api = {}
-
 	function api:Set(option)
 		if table.find(options, option) then
 			current = option
 			valueLabel.Text = tostring(option)
-			if flag then
-				window.Flags[flag] = option
-			end
+			if flag then window.Flags[flag] = option end
 		end
 	end
-
-	function api:Get()
-		return current
-	end
-
+	function api:Get() return current end
 	function api:Refresh(newOptions)
 		options = newOptions or {}
-
 		for _, button in ipairs(optionButtons) do
 			button:Destroy()
 		end
 		optionButtons = {}
-
 		for index, option in ipairs(options) do
-			local optionButton = Create("TextButton", {
-				Parent = list,
-				BackgroundColor3 = theme.Accent,
-				BackgroundTransparency = 1,
-				BorderSizePixel = 0,
-				Text = tostring(option),
-				Font = FONT,
-				TextSize = 13,
-				TextColor3 = theme.Text,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				AutoButtonColor = false,
-				Size = UDim2.new(1, 0, 0, 26),
-				LayoutOrder = index,
-			})
-			AddCorner(optionButton, 4)
-
-			Create("UIPadding", {
-				Parent = optionButton,
-				PaddingLeft = UDim.new(0, 8),
-			})
-
-			optionButton.MouseEnter:Connect(function()
-				Tween(optionButton, { BackgroundTransparency = 0, BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
-			end)
-
-			optionButton.MouseLeave:Connect(function()
-				Tween(optionButton, { BackgroundTransparency = 1 }, ANIM_FAST)
-			end)
-
-			optionButton.MouseButton1Click:Connect(function()
-				current = option
-				valueLabel.Text = tostring(option)
-
-				if flag then
-					window.Flags[flag] = option
-				end
-
-				if config.Callback then
-					task.spawn(config.Callback, option)
-				end
-
-				open = false
-				list.Visible = false
-				list.Size = UDim2.new(1, 0, 0, 0)
-				row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
-				arrow.Text = "▼"
-			end)
-
-			optionButtons[index] = optionButton
+			optionButtons[index] = buildOption(option, index)
 		end
 	end
-
 	api.Instance = row
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 按键绑定
---------------------------------------------------------------------------------
-
 function Section:CreateKeybind(config)
 	config = config or {}
-
 	local theme = self.Theme
 	local window = self.Window
 
-	local name    = config.Name or "Keybind"
-	local flag    = config.Flag
+	local name = config.Name or "Keybind"
+	local flag = config.Flag
 	local current = config.Default or Enum.KeyCode.E
 
 	local row = self:_createRow(ROW_HEIGHT)
@@ -1645,6 +1496,7 @@ function Section:CreateKeybind(config)
 		TextSize = 14,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		Size = UDim2.new(1, -120, 1, 0),
 	})
 
@@ -1652,7 +1504,7 @@ function Section:CreateKeybind(config)
 		Parent = row,
 		BackgroundColor3 = theme.SurfaceAlt,
 		BorderSizePixel = 0,
-		Text = current.Name,
+		Text = current and current.Name or "None",
 		Font = FONT,
 		TextSize = 12,
 		TextColor3 = theme.Text,
@@ -1660,6 +1512,7 @@ function Section:CreateKeybind(config)
 		Size = UDim2.new(0, 100, 0, 28),
 		Position = UDim2.new(1, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
+		Active = true,
 	})
 	AddCorner(keyButton, ELEMENT_RADIUS)
 
@@ -1668,11 +1521,9 @@ function Section:CreateKeybind(config)
 	keyButton.MouseEnter:Connect(function()
 		Tween(keyButton, { BackgroundColor3 = theme.SurfaceHover }, ANIM_FAST)
 	end)
-
 	keyButton.MouseLeave:Connect(function()
 		Tween(keyButton, { BackgroundColor3 = theme.SurfaceAlt }, ANIM_FAST)
 	end)
-
 	keyButton.MouseButton1Click:Connect(function()
 		listening = true
 		keyButton.Text = "..."
@@ -1680,14 +1531,11 @@ function Section:CreateKeybind(config)
 	end)
 
 	table.insert(window._connections, UserInputService.InputBegan:Connect(function(input, processed)
-		if input.UserInputType ~= Enum.UserInputType.Keyboard then
-			return
-		end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-		-- 监听模式
 		if listening then
 			if input.KeyCode == Enum.KeyCode.Escape then
-				-- 取消绑定，保留原按键
+				-- 取消
 			elseif input.KeyCode == Enum.KeyCode.Backspace then
 				current = nil
 			else
@@ -1698,60 +1546,34 @@ function Section:CreateKeybind(config)
 			keyButton.Text = current and current.Name or "None"
 			keyButton.TextColor3 = theme.Text
 
-			if flag then
-				window.Flags[flag] = current
-			end
-
-			if config.ChangedCallback then
-				task.spawn(config.ChangedCallback, current)
-			end
-
+			if flag then window.Flags[flag] = current end
+			if config.ChangedCallback then task.spawn(config.ChangedCallback, current) end
 			return
 		end
 
-		-- 触发模式
-		if processed then
-			return
-		end
+		if processed then return end
 
 		if current and input.KeyCode == current then
-			if config.Callback then
-				task.spawn(config.Callback, current)
-			end
+			if config.Callback then task.spawn(config.Callback, current) end
 		end
 	end))
 
-	if flag then
-		window.Flags[flag] = current
-	end
+	if flag then window.Flags[flag] = current end
 
 	local api = {}
-
 	function api:Set(keyCode)
 		current = keyCode
 		keyButton.Text = keyCode and keyCode.Name or "None"
-
-		if flag then
-			window.Flags[flag] = current
-		end
+		if flag then window.Flags[flag] = current end
 	end
-
-	function api:Get()
-		return current
-	end
-
+	function api:Get() return current end
 	api.Instance = keyButton
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 文本标签
---------------------------------------------------------------------------------
-
 function Section:CreateLabel(text, config)
 	config = config or {}
-
 	local theme = self.Theme
 
 	local label = Create("TextLabel", {
@@ -1773,27 +1595,15 @@ function Section:CreateLabel(text, config)
 	end
 
 	local api = {}
-
-	function api:SetText(value)
-		label.Text = tostring(value)
-	end
-
-	function api:SetColor(color)
-		label.TextColor3 = color
-	end
-
+	function api:SetText(value) label.Text = tostring(value) end
+	function api:SetColor(color) label.TextColor3 = color end
 	api.Instance = label
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 段落
---------------------------------------------------------------------------------
-
 function Section:CreateParagraph(config)
 	config = config or {}
-
 	local theme = self.Theme
 
 	local title = config.Title or "标题"
@@ -1851,27 +1661,15 @@ function Section:CreateParagraph(config)
 	})
 
 	local api = {}
-
-	function api:SetTitle(value)
-		titleLabel.Text = tostring(value)
-	end
-
-	function api:SetText(value)
-		contentLabel.Text = tostring(value)
-	end
-
+	function api:SetTitle(value) titleLabel.Text = tostring(value) end
+	function api:SetText(value) contentLabel.Text = tostring(value) end
 	api.Instance = container
-
 	return api
 end
 
---------------------------------------------------------------------------------
 -- 分割线
---------------------------------------------------------------------------------
-
 function Section:CreateDivider()
 	local theme = self.Theme
-
 	local divider = Create("Frame", {
 		Parent = self.Body,
 		BackgroundColor3 = theme.Border,
@@ -1879,44 +1677,36 @@ function Section:CreateDivider()
 		Size = UDim2.new(1, 0, 0, 1),
 		LayoutOrder = self:_nextOrder(),
 	})
-
 	local api = {}
-
 	api.Instance = divider
-
 	return api
 end
 
 --================================================================================
--- [09] 库入口方法
+-- [09] 库入口
 --================================================================================
 
---- 创建窗口
 function Snow:CreateWindow(config)
 	return Window.new(self, config)
 end
 
---- 发送通知
 function Snow:Notify(config)
 	return NotificationModule:Push(config or {})
 end
 
---- 获取指定主题
 function Snow:GetTheme(name)
 	return self.Themes[name]
 end
 
---- 注册自定义主题
 function Snow:RegisterTheme(name, themeTable)
 	assert(type(name) == "string", "主题名称必须是字符串")
 	assert(type(themeTable) == "table", "主题内容必须是 table")
-
 	self.Themes[name] = themeTable
 	return true
 end
 
---================================================================================
--- [10] 返回
---================================================================================
+function Snow:IsMobile()
+	return IS_MOBILE
+end
 
 return Snow
