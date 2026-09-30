@@ -1,38 +1,58 @@
+-- =========================================================
+-- UI Library · 完整版
+-- 特性：移动端适配、拖动防抖、连接管理、新控件
+-- =========================================================
+
 local a = {windowCount = 0, flags = {}, _conns = {}, _guis = {}}
+
 local b = {}
-setmetatable(
-    b,
-    {__index = function(c, d)
-            return game:GetService(d)
-        end, __newindex = function(e, f)
-            e[f] = nil
-            return
-        end}
-)
+setmetatable(b, {
+    __index = function(c, d)
+        return game:GetService(d)
+    end,
+    __newindex = function(e, f, v)
+        rawset(e, f, v)   -- 用 rawset 避免递归
+    end
+})
 
-local TweenService     = b.TweenService
-local UserInputService = b.UserInputService
-local RunService       = b.RunService
-local HttpService      = b.HttpService
-local Players          = b.Players
-local CoreGui          = b.CoreGui
+-- ===== 缓存服务（避免每次走 __index）=====
+local TweenService     = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService       = game:GetService("RunService")
+local HttpService      = game:GetService("HttpService")
+local Players          = game:GetService("Players")
 
+local CoreGui
+pcall(function() CoreGui = game:GetService("CoreGui") end)
+
+local plr = Players.LocalPlayer
+if not plr then
+    warn("[UI] 必须在 LocalScript 中运行")
+    return a
+end
+
+-- ===== 工具函数 =====
 local function trackConn(c)
     a._conns[#a._conns + 1] = c
     return c
 end
+
 local function Txt(v)
     if v == nil then return "" end
     return tostring(v)
 end
 
--- 记录窗口原始 ZIndex（弱表，避免污染 Instance）
+local function isTable(t) return type(t) == "table" end
+local function isNum(n)   return type(n) == "number" end
+local function isFunc(f)  return type(f) == "function" end
+
+-- 记录窗口原始 ZIndex（弱表）
 local zOrig = setmetatable({}, {__mode = "k"})
 
 local g
-local h = Players.LocalPlayer:GetMouse()
+local h = plr:GetMouse()
 
--- 全局输入状态
+-- ===== 全局输入状态（合并所有拖动/滑块）=====
 local dragState  = nil
 local slideState = nil
 local zCounter   = 10
@@ -50,6 +70,7 @@ trackConn(UserInputService.InputChanged:Connect(function(p)
     end
     if slideState then slideState(p) end
 end))
+
 trackConn(UserInputService.InputEnded:Connect(function(p)
     if p.UserInputType == Enum.UserInputType.MouseButton1
         or p.UserInputType == Enum.UserInputType.Touch then
@@ -58,6 +79,7 @@ trackConn(UserInputService.InputEnded:Connect(function(p)
     end
 end))
 
+-- ===== 拖动 =====
 function Drag(i, j)
     if g and g ~= i then
         g.ZIndex = zOrig[g] or 1
@@ -81,6 +103,7 @@ function Drag(i, j)
     end))
 end
 
+-- ===== 点击水波纹 =====
 function ClickEffect(r)
     task.spawn(function()
         if r.ClipsDescendants ~= true then
@@ -97,10 +120,8 @@ function ClickEffect(r)
         s.ImageColor3 = Color3.fromRGB(131, 132, 255)
         s.AnchorPoint = Vector2.new(0.5, 0.5)
 
-        -- 触摸/鼠标位置都可用
         local mx, my
         if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
-            -- 触摸时退化为父级中心
             mx = r.AbsolutePosition.X + r.AbsoluteSize.X / 2
             my = r.AbsolutePosition.Y + r.AbsoluteSize.Y / 2
         else
@@ -123,10 +144,12 @@ function ClickEffect(r)
     end)
 end
 
+-- ===== 主 GUI =====
 local t = Instance.new("ScreenGui")
 t.Name = HttpService:GenerateGUID()
 t.ResetOnSpawn = false
-t.Parent = RunService:IsStudio() and Players.LocalPlayer:WaitForChild("PlayerGui") or CoreGui
+t.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+t.Parent = RunService:IsStudio() and plr:WaitForChild("PlayerGui") or CoreGui
 a._guis[#a._guis + 1] = t
 
 -- 桌面快捷键
@@ -141,7 +164,8 @@ if UserInputService.TouchEnabled then
     local mobileGui = Instance.new("ScreenGui")
     mobileGui.Name = "MobileUI"
     mobileGui.ResetOnSpawn = false
-    mobileGui.Parent = RunService:IsStudio() and Players.LocalPlayer:WaitForChild("PlayerGui") or CoreGui
+    mobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    mobileGui.Parent = RunService:IsStudio() and plr:WaitForChild("PlayerGui") or CoreGui
     a._guis[#a._guis + 1] = mobileGui
 
     local mb = Instance.new("TextButton")
@@ -161,7 +185,6 @@ if UserInputService.TouchEnabled then
     mc.CornerRadius = UDim.new(0, 12)
     mc.Parent = mb
 
-    -- 悬浮按钮本身的拖动
     local mDrag = nil
     local mDragged = false
     trackConn(mb.InputBegan:Connect(function(input)
@@ -192,6 +215,7 @@ if UserInputService.TouchEnabled then
     end))
 end
 
+-- ===== 销毁 =====
 function a:Destroy()
     for _, c in ipairs(self._conns) do
         pcall(function() c:Disconnect() end)
@@ -203,6 +227,7 @@ function a:Destroy()
     self._guis = {}
 end
 
+-- ===== 窗口 =====
 function a:Window(w)
     local x = false
     a.windowCount = a.windowCount + 1
@@ -321,14 +346,13 @@ function a:Window(w)
 
     local K = {}
 
-    -- ============ 原有控件 ============
+    -- ============ 基础控件 ============
     function K:Label(L)
         local M = Instance.new("TextButton")
         M.Name = "Label"
         M.Parent = E
         M.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
         M.BorderSizePixel = 0
-        M.Position = UDim2.new(0.0212264154, 0, 0.71676302, 0)
         M.Size = UDim2.new(0, 203, 0, 26)
         M.AutoButtonColor = false
         M.Font = Enum.Font.GothamSemibold
@@ -346,13 +370,12 @@ function a:Window(w)
         O.Parent = E
         O.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
         O.BorderSizePixel = 0
-        O.Position = UDim2.new(0, 0, 0.0172413792, 0)
         O.Size = UDim2.new(0, 203, 0, 36)
         P.Name = "Button"
         P.Parent = O
         P.BackgroundTransparency = 1.000
         P.BorderSizePixel = 0
-        P.Size = UDim2.new(0, 203, 0, 36)
+        P.Size = UDim2.new(1, 0, 1, 0)
         P.Font = Enum.Font.Gotham
         P.Text = "  " .. Txt(L)
         P.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -374,12 +397,21 @@ function a:Window(w)
         return P
     end
 
+    -- Toggle：支持 (标题, 默认值, 回调) 和 (标题, flagId, 默认值, 回调)
     function K:Toggle(Q, R, S, N, T)
+        -- 兼容 (标题, 默认值, 回调)
+        if type(R) == "boolean" and isFunc(S) then
+            N = S
+            S = R
+            R = Q
+        end
+        if isTable(T) == false then T = a.flags end
         T = T or a.flags
-        R = R or HttpService:GenerateGUID()
-        S = S or false
+        R = R or Q
+        S = S == true
         N = N or function() end
         T[R] = S
+
         local U = Instance.new("Frame")
         local V = Instance.new("TextButton")
         local W = Instance.new("Frame")
@@ -388,13 +420,12 @@ function a:Window(w)
         U.Parent = E
         U.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
         U.BorderSizePixel = 0
-        U.Position = UDim2.new(0, 0, 0.0172413792, 0)
         U.Size = UDim2.new(0, 203, 0, 36)
         V.Name = "ToggleText"
         V.Parent = U
         V.BackgroundTransparency = 1.000
         V.BorderSizePixel = 0
-        V.Size = UDim2.new(0, 203, 0, 36)
+        V.Size = UDim2.new(1, 0, 1, 0)
         V.Font = Enum.Font.Gotham
         V.Text = "  " .. Txt(Q)
         V.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -410,6 +441,7 @@ function a:Window(w)
         X.CornerRadius = UDim.new(0, 4)
         X.Name = "ToggleStatusRound"
         X.Parent = W
+
         if S then
             local ok, err = pcall(N, true)
             if not ok then warn("[UI] Toggle callback:", err) end
@@ -435,19 +467,47 @@ function a:Window(w)
         return U
     end
 
+    -- Slider：兼容多种调用
+    -- 标准：(标题, flagId, min, max, 回调, 默认值, flags, step)
+    -- 简写1：(标题, min, max, 回调, 默认值, flags, step)
+    -- 简写2：(标题, min, max, 默认值, 回调, flags, step)
     function K:Slider(Y, Z, _, a0, N, S, T, step)
-        local a1 = _ or 0
-        local a2 = a0 or 100
+        -- 错位兼容：第2参是数字 → 用户走的是简写
+        if isNum(Z) and isNum(_) then
+            if isFunc(a0) then
+                -- (标题, min, max, 回调, 默认值, flags, step)
+                local _min, _max, _cb, _default = Z, _, a0, N
+                local _flags = isTable(S) and S or nil
+                local _step  = isNum(T) and T or 1
+                Z, _, a0, N, S, T = Y, _min, _max, _cb, _default, _flags
+                step = _step
+            elseif isNum(a0) and isFunc(N) then
+                -- (标题, min, max, 默认值, 回调, flags, step)
+                local _min, _max, _default, _cb = Z, _, a0, N
+                local _flags = isTable(S) and S or nil
+                local _step  = isNum(T) and T or (isNum(S) and S) or 1
+                Z, _, a0, N, S, T = Y, _min, _max, _cb, _default, _flags
+                step = _step
+            end
+        end
+        -- 如果第7参是数字，当作 step
+        if isNum(T) and step == nil then
+            step = T
+            T = nil
+        end
+        if not isTable(T) then T = a.flags end
+
+        local a1 = tonumber(_) or 0
+        local a2 = tonumber(a0) or 100
         local a3 = Z or HttpService:GenerateGUID()
         N = N or function() end
-        T = T or a.flags
-        step = step or 1
+        step = tonumber(step) or 1
 
         local minV = math.min(a1, a2)
         local maxV = math.max(a1, a2)
         if maxV == minV then maxV = minV + 1 end
 
-        local current = S or a1
+        local current = tonumber(S) or a1
         current = math.clamp(current, minV, maxV)
         T[a3] = current
 
@@ -462,13 +522,12 @@ function a:Window(w)
         a4.Parent = E
         a4.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
         a4.BorderSizePixel = 0
-        a4.Position = UDim2.new(0, 0, 0.0172413792, 0)
         a4.Size = UDim2.new(0, 203, 0, 36)
         a5.Name = "SliderText"
         a5.Parent = a4
         a5.BackgroundTransparency = 1.000
         a5.BorderSizePixel = 0
-        a5.Size = UDim2.new(0, 203, 0, 36)
+        a5.Size = UDim2.new(1, 0, 1, 0)
         a5.Font = Enum.Font.Gotham
         a5.Text = "  " .. Txt(Y)
         a5.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -555,8 +614,6 @@ function a:Window(w)
     end
 
     -- ============ 新控件 ============
-
-    -- Section：分类标题
     function K:Section(L)
         local M = Instance.new("Frame")
         M.Name = "Section"
@@ -577,7 +634,6 @@ function a:Window(w)
         return M
     end
 
-    -- TextBox：文本输入
     function K:TextBox(L, Q, N, F)
         F = F or L
         N = N or function() end
@@ -626,10 +682,10 @@ function a:Window(w)
         return U
     end
 
-    -- Dropdown：下拉选择
     function K:Dropdown(L, options, N, F)
         F = F or L
         options = options or {}
+        if #options == 0 then options = {"(空)"} end
         N = N or function() end
         local selected = options[1]
         a.flags[F] = selected
@@ -722,7 +778,6 @@ function a:Window(w)
         return U
     end
 
-    -- Keybind：按键绑定
     function K:Keybind(L, defaultKey, N, F)
         F = F or L
         N = N or function() end
@@ -762,7 +817,6 @@ function a:Window(w)
         WC.Parent = W
 
         local listening = false
-
         trackConn(W.MouseButton1Click:Connect(function()
             listening = true
             W.Text = "..."
@@ -782,7 +836,6 @@ function a:Window(w)
         return U
     end
 
-    -- ColorPicker：预设颜色选择
     function K:ColorPicker(L, defaultColor, N, F)
         F = F or L
         N = N or function() end
