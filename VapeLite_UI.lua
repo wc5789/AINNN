@@ -276,7 +276,7 @@ end
 -- ============================================================
 local VapeLiteUI = {}
 VapeLiteUI.__index = VapeLiteUI
-VapeLiteUI.Version      = "2.0.0"
+VapeLiteUI.Version      = "2.1.1"
 VapeLiteUI.Theme        = Theme
 VapeLiteUI._elements    = {}
 VapeLiteUI._windows     = {}
@@ -295,18 +295,26 @@ function VapeLiteUI:CreateWindow(config)
     config = config or {}
 
     local title       = config.Title or "VapeLite"
-    local size        = config.Size or UDim2.new(0, 680, 0, 430)
+    local requestedSize = config.Size or UDim2.new(0, 680, 0, 430)
     local toggleKey   = config.ToggleKey or Enum.KeyCode.RightControl
-    local minSize     = config.MinSize or Vector2.new(460, 300)
+    local touchDevice = UserInputService.TouchEnabled
+    local viewportNow = GetViewport()
+    local mobileMode  = touchDevice and viewportNow.X <= 900
+    local defaultMin  = mobileMode and Vector2.new(300, 250) or Vector2.new(460, 300)
+    local minSize     = config.MinSize or defaultMin
     local canSaveCfg  = config.ConfigSaving and type(writefile) == "function" and type(readfile) == "function"
     local cfgFolder   = config.ConfigFolder or "VapeLiteUI"
     local cfgName     = config.ConfigName or "default"
     local autoLoad    = config.AutoLoadConfig and canSaveCfg
-    local showFooter  = config.Footer ~= false
+    local showFooter  = config.Footer ~= false and not mobileMode
 
-    local width  = size.X.Offset
-    local height = size.Y.Offset
+    local requestedWidth  = requestedSize.X.Offset
+    local requestedHeight = requestedSize.Y.Offset
+    local width  = mobileMode and math.min(requestedWidth, math.max(300, viewportNow.X - 16)) or math.min(requestedWidth, math.max(460, viewportNow.X - 40))
+    local height = mobileMode and math.min(requestedHeight, math.max(250, viewportNow.Y - 54)) or math.min(requestedHeight, math.max(300, viewportNow.Y - 40))
     local footerH = showFooter and 22 or 0
+    local topBarH = mobileMode and 42 or 44
+    local sidebarW = mobileMode and math.clamp(math.floor(viewportNow.X * 0.28), 96, 116) or 148
 
     local gui = Create("ScreenGui", {
         Name = "VapeLiteUI",
@@ -330,8 +338,8 @@ function VapeLiteUI:CreateWindow(config)
         BorderSizePixel = 0,
         ClipsDescendants = true,
         Position = UDim2.new(0, startX, 0, startY),
-        Size = UDim2.new(0, math.floor(width * 0.95), 0, math.floor(height * 0.95)),
-        BackgroundTransparency = 0.05,
+        Size = UDim2.new(0, width, 0, height),
+        BackgroundTransparency = 0.04,
     })
     Corner(main, Theme.Radius)
     Stroke(main, Theme.Border, 1)
@@ -342,7 +350,7 @@ function VapeLiteUI:CreateWindow(config)
         Parent = main,
         BackgroundColor3 = Theme.SurfaceAlt,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 44),
+        Size = UDim2.new(1, 0, 0, topBarH),
     })
     Corner(topBar, Theme.Radius)
 
@@ -353,6 +361,15 @@ function VapeLiteUI:CreateWindow(config)
         BorderSizePixel = 0,
         Position = UDim2.new(0, 0, 1, -8),
         Size = UDim2.new(1, 0, 0, 8),
+    })
+
+    local dragArea = Create("Frame", {
+        Name = "DragArea",
+        Parent = topBar,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, -72, 1, 0),
+        ZIndex = 1,
     })
 
     local titleLabel = Create("TextLabel", {
@@ -375,7 +392,7 @@ function VapeLiteUI:CreateWindow(config)
         Parent = topBar,
         BackgroundTransparency = 1,
         Position = UDim2.new(1, -64, 0, 0),
-        Size = UDim2.new(0, 32, 0, 44),
+        Size = UDim2.new(0, 32, 0, topBarH),
         Text = "",
         AutoButtonColor = false,
         ZIndex = 3,
@@ -402,7 +419,7 @@ function VapeLiteUI:CreateWindow(config)
         Parent = topBar,
         BackgroundTransparency = 1,
         Position = UDim2.new(1, -32, 0, 0),
-        Size = UDim2.new(0, 32, 0, 44),
+        Size = UDim2.new(0, 32, 0, topBarH),
         Text = "",
         AutoButtonColor = false,
         ZIndex = 3,
@@ -434,8 +451,8 @@ function VapeLiteUI:CreateWindow(config)
         Parent = main,
         BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 0, 44),
-        Size = UDim2.new(0, 148, 1, -(44 + footerH)),
+        Position = UDim2.new(0, 0, 0, topBarH),
+        Size = UDim2.new(0, sidebarW, 1, -(topBarH + footerH)),
     })
 
     -- Search box
@@ -444,8 +461,8 @@ function VapeLiteUI:CreateWindow(config)
         Parent = sidebar,
         BackgroundColor3 = Theme.Input,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 10, 0, 8),
-        Size = UDim2.new(1, -20, 0, 26),
+        Position = UDim2.new(0, 8, 0, 8),
+        Size = UDim2.new(1, -16, 0, mobileMode and 28 or 26),
     })
     Corner(searchHolder, Theme.RadiusSmall)
     Stroke(searchHolder, Theme.Border, 1, 0.4)
@@ -469,7 +486,7 @@ function VapeLiteUI:CreateWindow(config)
         Name = "Content",
         Parent = sidebar,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 44),
+        Position = UDim2.new(0, 0, 0, mobileMode and 44 or 44),
         Size = UDim2.new(1, 0, 1, -44),
     })
     Create("UIListLayout", {
@@ -485,8 +502,8 @@ function VapeLiteUI:CreateWindow(config)
         Parent = main,
         BackgroundColor3 = Theme.Border,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 148, 0, 44),
-        Size = UDim2.new(0, 1, 1, -(44 + footerH)),
+        Position = UDim2.new(0, sidebarW, 0, topBarH),
+        Size = UDim2.new(0, 1, 1, -(topBarH + footerH)),
     })
 
     -- ---- CONTENT AREA ----
@@ -494,8 +511,8 @@ function VapeLiteUI:CreateWindow(config)
         Name = "ContentHolder",
         Parent = main,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 149, 0, 44),
-        Size = UDim2.new(1, -149, 1, -(44 + footerH)),
+        Position = UDim2.new(0, sidebarW + 1, 0, topBarH),
+        Size = UDim2.new(1, -(sidebarW + 1), 1, -(topBarH + footerH)),
     })
 
     -- ---- FOOTER ----
@@ -524,7 +541,7 @@ function VapeLiteUI:CreateWindow(config)
             Font = Theme.Font,
             Text = "Ready",
             TextColor3 = Theme.TextMuted,
-            TextSize = 12,
+            TextSize = mobileMode and 11 or 12,
             TextXAlignment = Enum.TextXAlignment.Left,
         })
         Create("TextLabel", {
@@ -550,6 +567,7 @@ function VapeLiteUI:CreateWindow(config)
         Size = UDim2.new(0, 16, 0, 16),
         Text = "",
         ZIndex = 6,
+        Visible = not mobileMode,
     })
     local gripLines = {}
     for i = 1, 3 do
@@ -579,11 +597,29 @@ function VapeLiteUI:CreateWindow(config)
     window._visible = true
     window._configSaving = canSaveCfg
     window._configFolder = cfgFolder
+    window._mobileMode = mobileMode
+    window._transitioning = false
 
-    -- Open animation: 0.95 -> 1.0
-    Tween(main, 0.15, { Size = UDim2.new(0, width, 0, height) })
+    -- Smooth window transition: scale + veil instead of fading only the background.
+    local uiScale = Create("UIScale", { Parent = main, Scale = 0.96 })
+    local transition = Create("Frame", {
+        Name = "Transition",
+        Parent = main,
+        BackgroundColor3 = Theme.Background,
+        BackgroundTransparency = 0,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 100,
+    })
+    local transitionCorner = Corner(transition, Theme.Radius)
+    Tween(uiScale, 0.22, { Scale = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    Tween(main, 0.22, { BackgroundTransparency = 0.04 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    Tween(transition, 0.20, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    task.delay(0.22, function()
+        if transition and transition.Parent then transition.Visible = false end
+    end)
 
-    AddDragging(topBar, main)
+    AddDragging(dragArea, main)
 
     -- ---- Resizing ----
     local resizing = false
@@ -624,11 +660,26 @@ function VapeLiteUI:CreateWindow(config)
         end
     end)
 
+    -- Keep the window inside the viewport after rotation / resolution changes.
+    local function reflowViewport()
+        local vp = GetViewport()
+        local maxW = mobileMode and math.max(300, vp.X - 16) or math.max(460, vp.X - 40)
+        local maxH = mobileMode and math.max(250, vp.Y - 54) or math.max(300, vp.Y - 40)
+        local current = main.AbsoluteSize
+        local targetW = math.min(current.X, maxW)
+        local targetH = math.min(current.Y, maxH)
+        main.Size = UDim2.new(0, math.clamp(targetW, math.min(minSize.X, maxW), maxW), 0, math.clamp(targetH, math.min(minSize.Y, maxH), maxH))
+        main.Position = UDim2.new(0, math.max(8, math.floor((vp.X - main.AbsoluteSize.X) / 2)), 0, math.max(8, math.floor((vp.Y - main.AbsoluteSize.Y) / 2)))
+    end
+    if workspace.CurrentCamera then
+        Connect(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), reflowViewport)
+    end
+
     -- ---- Minimize ----
     local function setMinimized(state)
         window._minimized = state
         if state then
-            Tween(main, 0.15, { Size = UDim2.new(0, 120, 0, 28) })
+            Tween(main, 0.18, { Size = UDim2.new(0, mobileMode and 112 or 120, 0, 30) }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
             sidebar.Visible = false
             contentHolder.Visible = false
             separator.Visible = false
@@ -644,12 +695,12 @@ function VapeLiteUI:CreateWindow(config)
                 main.Footer.Visible = false
             end
         else
-            Tween(main, 0.15, { Size = window._size })
+            Tween(main, 0.22, { Size = window._size }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
             sidebar.Visible = true
             contentHolder.Visible = true
             separator.Visible = true
             resizeGrip.Visible = true
-            topBar.Size = UDim2.new(1, 0, 0, 44)
+            topBar.Size = UDim2.new(1, 0, 0, topBarH)
             titleLabel.Text = window._title
             titleLabel.Position = UDim2.new(0, 14, 0, 0)
             titleLabel.Size = UDim2.new(1, -60, 1, 0)
@@ -777,20 +828,40 @@ function VapeLiteUI:CreateWindow(config)
     -- ================================================
     -- WINDOW METHODS
     -- ================================================
-    --- Hide the window with a short fade.
+    --- Hide the window with a smooth scale-down + veil transition.
     function window:Hide()
+        if not window._visible or window._transitioning then return end
+        window._transitioning = true
         window._visible = false
-        Tween(main, 0.2, { BackgroundTransparency = 1 })
-        task.delay(0.2, function()
-            main.Visible = false
+        transition.Visible = true
+        transition.BackgroundTransparency = 1
+        Tween(transition, 0.18, { BackgroundTransparency = 0.08 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        Tween(uiScale, 0.20, { Scale = 0.94 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        Tween(main, 0.20, { BackgroundTransparency = 0.16 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        task.delay(0.21, function()
+            if main and main.Parent then main.Visible = false end
+            if transition and transition.Parent then transition.Visible = false end
+            window._transitioning = false
         end)
     end
 
-    --- Show the window with a short fade.
+    --- Show the window with a smooth scale-up + fade-in transition.
     function window:Show()
+        if window._visible and not window._transitioning then return end
+        window._transitioning = true
         window._visible = true
         main.Visible = true
-        Tween(main, 0.2, { BackgroundTransparency = 0.05 })
+        transition.Visible = true
+        transition.BackgroundTransparency = 0.08
+        uiScale.Scale = 0.94
+        main.BackgroundTransparency = 0.16
+        Tween(uiScale, 0.22, { Scale = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        Tween(transition, 0.20, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        Tween(main, 0.22, { BackgroundTransparency = 0.04 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        task.delay(0.23, function()
+            if transition and transition.Parent then transition.Visible = false end
+            window._transitioning = false
+        end)
     end
 
     --- Toggle visibility.
@@ -799,6 +870,15 @@ function VapeLiteUI:CreateWindow(config)
             window:Hide()
         else
             window:Show()
+        end
+    end
+
+    --- Set window visibility explicitly.
+    function window:SetVisible(state)
+        if state then
+            self:Show()
+        else
+            self:Hide()
         end
     end
 
@@ -857,7 +937,7 @@ function VapeLiteUI:CreateWindow(config)
             Parent = sidebarContent,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 34),
+            Size = UDim2.new(1, 0, 0, mobileMode and 36 or 34),
             Text = "",
             AutoButtonColor = false,
             LayoutOrder = tab._index,
@@ -879,7 +959,7 @@ function VapeLiteUI:CreateWindow(config)
             Name = "Label",
             Parent = tabBtn,
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, 14, 0, 0),
+            Position = UDim2.new(0, mobileMode and 10 or 14, 0, 0),
             Size = UDim2.new(1, -14, 1, 0),
             Font = Theme.Font,
             Text = name,
@@ -897,7 +977,7 @@ function VapeLiteUI:CreateWindow(config)
             Size = UDim2.new(1, 0, 1, 0),
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollBarThickness = 2,
+            ScrollBarThickness = mobileMode and 4 or 2,
             ScrollBarImageColor3 = Theme.Border,
             ScrollBarImageTransparency = 0.3,
             ScrollingDirection = Enum.ScrollingDirection.Y,
@@ -1707,7 +1787,7 @@ function VapeLiteUI:CreateWindow(config)
                     Size = UDim2.new(1, -8, 0, listH),
                     CanvasSize = UDim2.new(0, 0, 0, 0),
                     AutomaticCanvasSize = Enum.AutomaticSize.Y,
-                    ScrollBarThickness = 2,
+                    ScrollBarThickness = mobileMode and 4 or 2,
                     ScrollBarImageColor3 = Theme.Border,
                     ScrollBarImageTransparency = 0.4,
                     ScrollingDirection = Enum.ScrollingDirection.Y,
@@ -2234,7 +2314,7 @@ function VapeLiteUI:CreateWindow(config)
                     BorderSizePixel = 0,
                     AnchorPoint = Vector2.new(1, 0.5),
                     Position = UDim2.new(1, -8, 0.5, 0),
-                    Size = UDim2.new(0, 120, 0, 22),
+                    Size = UDim2.new(0, mobileMode and 96 or 120, 0, 24),
                 })
                 Corner(inputFrame, Theme.RadiusSmall)
                 Stroke(inputFrame, Theme.Border, 1, 0.4)
@@ -2309,7 +2389,7 @@ function VapeLiteUI:CreateWindow(config)
                 end
 
                 local collapsedH = Theme.RowHeight
-                local expandedH = 192
+                local expandedH = mobileMode and 184 or 192
                 local expanded = false
                 local svDragging = false
                 local hueDragging = false
@@ -2351,7 +2431,7 @@ function VapeLiteUI:CreateWindow(config)
                     BorderSizePixel = 0,
                     AnchorPoint = Vector2.new(1, 0.5),
                     Position = UDim2.new(1, -10, 0.5, 0),
-                    Size = UDim2.new(0, 26, 0, 16),
+                    Size = UDim2.new(0, mobileMode and 30 or 26, 0, 18),
                     ZIndex = 2,
                 })
                 Corner(swatch, Theme.RadiusSmall)
