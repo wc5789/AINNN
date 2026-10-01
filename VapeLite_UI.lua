@@ -314,6 +314,27 @@ function VapeLiteUI:CreateWindow(config)
     local minSize     = config.MinSize or defaultMin
     local canSaveCfg  = config.ConfigSaving and type(writefile) == "function" and type(readfile) == "function"
     local cfgFolder   = config.ConfigFolder or "VapeLiteUI"
+
+    -- Create the window object before any UI controls register callbacks.
+    -- Lua local scope does not include declarations that appear later in the function.
+    local window = {}
+    window.Tabs = {}
+    window._connections = {}
+    window._animationToken = 0
+    window._destroyed = false
+
+    local function WindowConnect(signal, callback)
+        local connection = signal:Connect(callback)
+        window._connections[#window._connections + 1] = connection
+        return connection
+    end
+
+    local function DisconnectWindowConnections()
+        for i = #window._connections, 1, -1 do
+            pcall(function() window._connections[i]:Disconnect() end)
+            window._connections[i] = nil
+        end
+    end
     local cfgName     = config.ConfigName or "default"
     local autoLoad    = config.AutoLoadConfig and canSaveCfg
     local showFooter  = config.Footer ~= false and not mobileMode
@@ -603,8 +624,6 @@ function VapeLiteUI:CreateWindow(config)
     -- ================================================
     -- WINDOW OBJECT
     -- ================================================
-    local window = {}
-    window.Tabs = {}
     window._gui = gui
     window._main = main
     window._title = title
@@ -617,22 +636,6 @@ function VapeLiteUI:CreateWindow(config)
     window._mobileMode = mobileMode
     window._transitioning = false
     window._destroyed = false
-    window._connections = {}
-    window._animationToken = 0
-
-    local function WindowConnect(signal, callback)
-        local connection = signal:Connect(callback)
-        window._connections[#window._connections + 1] = connection
-        return connection
-    end
-
-    local function DisconnectWindowConnections()
-        for i = #window._connections, 1, -1 do
-            pcall(function() window._connections[i]:Disconnect() end)
-            window._connections[i] = nil
-        end
-    end
-
     -- Smooth window transition: scale + veil instead of fading only the background.
     local uiScale = Create("UIScale", { Parent = main, Scale = 0.96 })
     local transition = Create("Frame", {
