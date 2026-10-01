@@ -18,7 +18,7 @@
       * Stacking typed notifications in the top-right corner
       * Optional draggable watermark
       * Optional config saving (requires exploit file API)
-      * No images, no emoji, text-only UI
+      * Compact icon slots using configurable text glyphs (no external image dependency)
 ]]
 
 -- ============================================================
@@ -35,32 +35,34 @@ local LocalPlayer      = Players.LocalPlayer
 -- THEME
 -- ============================================================
 local Theme = {
-    Background    = Color3.fromRGB(22, 22, 26),
-    Surface       = Color3.fromRGB(30, 30, 35),
-    SurfaceAlt    = Color3.fromRGB(26, 26, 30),
-    SurfaceHover  = Color3.fromRGB(36, 36, 42),
-    SurfacePress  = Color3.fromRGB(42, 42, 50),
-    Accent        = Color3.fromRGB(120, 140, 255),
-    AccentDim     = Color3.fromRGB(72, 84, 153),
-    Border        = Color3.fromRGB(48, 48, 56),
-    Text          = Color3.fromRGB(230, 230, 235),
-    TextDim       = Color3.fromRGB(140, 140, 150),
-    TextMuted     = Color3.fromRGB(90, 90, 100),
-    Track         = Color3.fromRGB(58, 58, 66),
-    Knob          = Color3.fromRGB(235, 235, 240),
-    Row           = Color3.fromRGB(28, 28, 33),
-    RowHover      = Color3.fromRGB(36, 36, 42),
-    Input         = Color3.fromRGB(20, 20, 24),
-    Danger        = Color3.fromRGB(220, 85, 85),
-    Success       = Color3.fromRGB(95, 200, 120),
-    Warning       = Color3.fromRGB(230, 180, 80),
-    Info          = Color3.fromRGB(120, 140, 255),
+    -- Deliberately restrained: Vape's visual language is dark, flat and compact.
+    Background    = Color3.fromRGB(17, 16, 20),
+    Surface       = Color3.fromRGB(22, 21, 26),
+    SurfaceAlt    = Color3.fromRGB(19, 18, 22),
+    SurfaceHover  = Color3.fromRGB(31, 30, 36),
+    SurfacePress  = Color3.fromRGB(38, 37, 44),
+    Accent        = Color3.fromRGB(35, 125, 245),
+    AccentDim     = Color3.fromRGB(24, 82, 160),
+    Border        = Color3.fromRGB(43, 41, 48),
+    Text          = Color3.fromRGB(224, 222, 230),
+    TextDim       = Color3.fromRGB(145, 142, 154),
+    TextMuted     = Color3.fromRGB(91, 88, 99),
+    Track         = Color3.fromRGB(39, 38, 45),
+    Knob          = Color3.fromRGB(242, 242, 246),
+    Row           = Color3.fromRGB(25, 24, 29),
+    RowHover      = Color3.fromRGB(31, 30, 36),
+    Input         = Color3.fromRGB(20, 19, 23),
+    Danger        = Color3.fromRGB(225, 80, 92),
+    Success       = Color3.fromRGB(70, 205, 125),
+    Warning       = Color3.fromRGB(235, 178, 75),
+    Info          = Color3.fromRGB(35, 125, 245),
     Font          = Enum.Font.Gotham,
     FontMedium    = Enum.Font.GothamMedium,
     FontSemi      = Enum.Font.GothamSemibold,
-    Radius        = 8,
+    Radius        = 6,
     RadiusSmall   = 4,
-    RowHeight     = 26,
+    RowHeight     = 42,
+    IconSize      = 42,
 }
 
 -- ============================================================
@@ -274,7 +276,7 @@ end
 -- ============================================================
 local VapeLiteUI = {}
 VapeLiteUI.__index = VapeLiteUI
-VapeLiteUI.Version      = "1.2.0"
+VapeLiteUI.Version      = "2.0.0"
 VapeLiteUI.Theme        = Theme
 VapeLiteUI._elements    = {}
 VapeLiteUI._windows     = {}
@@ -293,9 +295,9 @@ function VapeLiteUI:CreateWindow(config)
     config = config or {}
 
     local title       = config.Title or "VapeLite"
-    local size        = config.Size or UDim2.new(0, 520, 0, 360)
+    local size        = config.Size or UDim2.new(0, 680, 0, 430)
     local toggleKey   = config.ToggleKey or Enum.KeyCode.RightControl
-    local minSize     = config.MinSize or Vector2.new(420, 280)
+    local minSize     = config.MinSize or Vector2.new(460, 300)
     local canSaveCfg  = config.ConfigSaving and type(writefile) == "function" and type(readfile) == "function"
     local cfgFolder   = config.ConfigFolder or "VapeLiteUI"
     local cfgName     = config.ConfigName or "default"
@@ -340,7 +342,7 @@ function VapeLiteUI:CreateWindow(config)
         Parent = main,
         BackgroundColor3 = Theme.SurfaceAlt,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 36),
+        Size = UDim2.new(1, 0, 0, 44),
     })
     Corner(topBar, Theme.Radius)
 
@@ -357,12 +359,12 @@ function VapeLiteUI:CreateWindow(config)
         Name = "Title",
         Parent = topBar,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 14, 0, 0),
+        Position = UDim2.new(0, 18, 0, 0),
         Size = UDim2.new(1, -60, 1, 0),
         Font = Theme.FontSemi,
         Text = title,
         TextColor3 = Theme.Text,
-        TextSize = 13,
+        TextSize = 14,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 2,
     })
@@ -372,8 +374,8 @@ function VapeLiteUI:CreateWindow(config)
         Name = "Minimize",
         Parent = topBar,
         BackgroundTransparency = 1,
-        Position = UDim2.new(1, -56, 0, 0),
-        Size = UDim2.new(0, 28, 0, 36),
+        Position = UDim2.new(1, -64, 0, 0),
+        Size = UDim2.new(0, 32, 0, 44),
         Text = "",
         AutoButtonColor = false,
         ZIndex = 3,
@@ -399,8 +401,8 @@ function VapeLiteUI:CreateWindow(config)
         Name = "Close",
         Parent = topBar,
         BackgroundTransparency = 1,
-        Position = UDim2.new(1, -28, 0, 0),
-        Size = UDim2.new(0, 28, 0, 36),
+        Position = UDim2.new(1, -32, 0, 0),
+        Size = UDim2.new(0, 32, 0, 44),
         Text = "",
         AutoButtonColor = false,
         ZIndex = 3,
@@ -432,8 +434,8 @@ function VapeLiteUI:CreateWindow(config)
         Parent = main,
         BackgroundColor3 = Theme.Surface,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 0, 36),
-        Size = UDim2.new(0, 130, 1, -(36 + footerH)),
+        Position = UDim2.new(0, 0, 0, 44),
+        Size = UDim2.new(0, 148, 1, -(44 + footerH)),
     })
 
     -- Search box
@@ -442,8 +444,8 @@ function VapeLiteUI:CreateWindow(config)
         Parent = sidebar,
         BackgroundColor3 = Theme.Input,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 6, 0, 6),
-        Size = UDim2.new(1, -12, 0, 24),
+        Position = UDim2.new(0, 10, 0, 8),
+        Size = UDim2.new(1, -20, 0, 26),
     })
     Corner(searchHolder, Theme.RadiusSmall)
     Stroke(searchHolder, Theme.Border, 1, 0.4)
@@ -467,8 +469,8 @@ function VapeLiteUI:CreateWindow(config)
         Name = "Content",
         Parent = sidebar,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 36),
-        Size = UDim2.new(1, 0, 1, -36),
+        Position = UDim2.new(0, 0, 0, 44),
+        Size = UDim2.new(1, 0, 1, -44),
     })
     Create("UIListLayout", {
         Parent = sidebarContent,
@@ -483,8 +485,8 @@ function VapeLiteUI:CreateWindow(config)
         Parent = main,
         BackgroundColor3 = Theme.Border,
         BorderSizePixel = 0,
-        Position = UDim2.new(0, 130, 0, 36),
-        Size = UDim2.new(0, 1, 1, -(36 + footerH)),
+        Position = UDim2.new(0, 148, 0, 44),
+        Size = UDim2.new(0, 1, 1, -(44 + footerH)),
     })
 
     -- ---- CONTENT AREA ----
@@ -492,8 +494,8 @@ function VapeLiteUI:CreateWindow(config)
         Name = "ContentHolder",
         Parent = main,
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 131, 0, 36),
-        Size = UDim2.new(1, -131, 1, -(36 + footerH)),
+        Position = UDim2.new(0, 149, 0, 44),
+        Size = UDim2.new(1, -149, 1, -(44 + footerH)),
     })
 
     -- ---- FOOTER ----
@@ -517,12 +519,12 @@ function VapeLiteUI:CreateWindow(config)
         statusLabel = Create("TextLabel", {
             Parent = footer,
             BackgroundTransparency = 1,
-            Position = UDim2.new(0, 14, 0, 0),
+            Position = UDim2.new(0, 18, 0, 0),
             Size = UDim2.new(0.6, 0, 1, 0),
             Font = Theme.Font,
             Text = "Ready",
             TextColor3 = Theme.TextMuted,
-            TextSize = 11,
+            TextSize = 12,
             TextXAlignment = Enum.TextXAlignment.Left,
         })
         Create("TextLabel", {
@@ -647,7 +649,7 @@ function VapeLiteUI:CreateWindow(config)
             contentHolder.Visible = true
             separator.Visible = true
             resizeGrip.Visible = true
-            topBar.Size = UDim2.new(1, 0, 0, 36)
+            topBar.Size = UDim2.new(1, 0, 0, 44)
             titleLabel.Text = window._title
             titleLabel.Position = UDim2.new(0, 14, 0, 0)
             titleLabel.Size = UDim2.new(1, -60, 1, 0)
@@ -855,7 +857,7 @@ function VapeLiteUI:CreateWindow(config)
             Parent = sidebarContent,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 28),
+            Size = UDim2.new(1, 0, 0, 34),
             Text = "",
             AutoButtonColor = false,
             LayoutOrder = tab._index,
@@ -882,7 +884,7 @@ function VapeLiteUI:CreateWindow(config)
             Font = Theme.Font,
             Text = name,
             TextColor3 = Theme.TextDim,
-            TextSize = 13,
+            TextSize = 12,
             TextXAlignment = Enum.TextXAlignment.Left,
         })
 
@@ -903,11 +905,11 @@ function VapeLiteUI:CreateWindow(config)
             Visible = false,
             ClipsDescendants = true,
         })
-        Padding(scroll, 10, 10, 10, 10)
+        Padding(scroll, 12, 12, 12, 12)
         Create("UIListLayout", {
             Parent = scroll,
             SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 14),
+            Padding = UDim.new(0, 10),
         })
 
         tab._scroll = scroll
@@ -928,7 +930,7 @@ function VapeLiteUI:CreateWindow(config)
             tabLabel.TextColor3 = Theme.Text
             tabBtn.BackgroundTransparency = 0
             tabBtn.BackgroundColor3 = Theme.SurfaceHover
-            Tween(indicator, 0.15, { Size = UDim2.new(0, 3, 0, 16) })
+            Tween(indicator, 0.15, { Size = UDim2.new(0, 3, 0, 20) })
 
             -- Content fade-in overlay
             local fade = Create("Frame", {
@@ -1010,7 +1012,7 @@ function VapeLiteUI:CreateWindow(config)
                 Position = UDim2.new(0, 0, 0, 0),
                 Size = UDim2.new(1, -18, 1, 0),
                 Font = Theme.FontSemi,
-                Text = string.upper(sectionName),
+                Text = sectionName,
                 TextColor3 = Theme.TextMuted,
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
@@ -1348,7 +1350,10 @@ function VapeLiteUI:CreateWindow(config)
                 cfg = cfg or {}
                 local state = cfg.Default and true or false
 
+                -- Module row layout follows Vape's compact hierarchy:
+                -- icon block | module name | optional summary | toggle | kebab.
                 local row = makeRow(Theme.RowHeight)
+                row.ClipsDescendants = true
 
                 local btn = Create("TextButton", {
                     Parent = row,
@@ -1358,16 +1363,48 @@ function VapeLiteUI:CreateWindow(config)
                     Text = "",
                     AutoButtonColor = false,
                 })
+
+                local iconHolder = Create("Frame", {
+                    Parent = row,
+                    BackgroundColor3 = Theme.SurfaceAlt,
+                    BorderSizePixel = 0,
+                    Size = UDim2.new(0, Theme.IconSize, 1, 0),
+                })
+                local icon = Create("TextLabel", {
+                    Parent = iconHolder,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 1, 0),
+                    Font = Theme.FontMedium,
+                    Text = tostring(cfg.Icon or "•"),
+                    TextColor3 = Theme.TextDim,
+                    TextSize = 17,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                    TextYAlignment = Enum.TextYAlignment.Center,
+                })
+
                 local label = Create("TextLabel", {
                     Parent = btn,
                     BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 10, 0, 0),
-                    Size = UDim2.new(1, -60, 1, 0),
-                    Font = Theme.Font,
+                    Position = UDim2.new(0, Theme.IconSize + 14, 0, 4),
+                    Size = UDim2.new(1, -Theme.IconSize - 120, 0, 20),
+                    Font = Theme.FontMedium,
                     Text = cfg.Name or "Toggle",
                     TextColor3 = Theme.Text,
-                    TextSize = 12,
+                    TextSize = 13,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                })
+
+                local summary = Create("TextLabel", {
+                    Parent = btn,
+                    BackgroundTransparency = 1,
+                    Position = UDim2.new(0, Theme.IconSize + 14, 0, 23),
+                    Size = UDim2.new(1, -Theme.IconSize - 120, 0, 15),
+                    Font = Theme.Font,
+                    Text = tostring(cfg.Summary or cfg.Description or ""),
+                    TextColor3 = Theme.TextDim,
+                    TextSize = 10,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
                 })
 
                 local track = Create("Frame", {
@@ -1375,41 +1412,58 @@ function VapeLiteUI:CreateWindow(config)
                     BackgroundColor3 = Theme.Track,
                     BorderSizePixel = 0,
                     AnchorPoint = Vector2.new(1, 0.5),
-                    Position = UDim2.new(1, -10, 0.5, 0),
-                    Size = UDim2.new(0, 32, 0, 16),
+                    Position = UDim2.new(1, -18, 0.5, 0),
+                    Size = UDim2.new(0, 34, 0, 18),
                     ZIndex = 2,
                 })
-                Corner(track, 8)
+                Corner(track, 9)
                 local knob = Create("Frame", {
                     Parent = track,
                     BackgroundColor3 = Theme.Knob,
                     BorderSizePixel = 0,
                     AnchorPoint = Vector2.new(0, 0.5),
-                    Position = UDim2.new(0, 2, 0.5, 0),
+                    Position = UDim2.new(0, 3, 0.5, 0),
                     Size = UDim2.new(0, 12, 0, 12),
                     ZIndex = 3,
                 })
                 Corner(knob, 6)
 
+                local dots = Create("TextLabel", {
+                    Parent = btn,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2.new(1, 0.5),
+                    Position = UDim2.new(1, -4, 0.5, 0),
+                    Size = UDim2.new(0, 8, 0, 22),
+                    Font = Theme.FontSemi,
+                    Text = "⋮",
+                    TextColor3 = Theme.TextMuted,
+                    TextSize = 16,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                })
+
                 AttachTooltip(row, cfg.Description)
 
                 local function applyState(animated)
-                    local duration = animated and 0.15 or 0
+                    local duration = animated and 0.12 or 0
                     if state then
                         Tween(track, duration, { BackgroundColor3 = Theme.Accent })
-                        Tween(knob, duration, { Position = UDim2.new(1, -14, 0.5, 0) })
+                        Tween(knob, duration, { Position = UDim2.new(1, -15, 0.5, 0) })
+                        Tween(icon, duration, { TextColor3 = Theme.Text })
                     else
                         Tween(track, duration, { BackgroundColor3 = Theme.Track })
-                        Tween(knob, duration, { Position = UDim2.new(0, 2, 0.5, 0) })
+                        Tween(knob, duration, { Position = UDim2.new(0, 3, 0.5, 0) })
+                        Tween(icon, duration, { TextColor3 = Theme.TextDim })
                     end
                 end
                 applyState(false)
 
                 Connect(btn.MouseEnter, function()
-                    Tween(row, 0.1, { BackgroundColor3 = Theme.RowHover })
+                    Tween(row, 0.08, { BackgroundColor3 = Theme.RowHover })
+                    Tween(iconHolder, 0.08, { BackgroundColor3 = Theme.SurfaceHover })
                 end)
                 Connect(btn.MouseLeave, function()
-                    Tween(row, 0.1, { BackgroundColor3 = Theme.Row })
+                    Tween(row, 0.08, { BackgroundColor3 = Theme.Row })
+                    Tween(iconHolder, 0.08, { BackgroundColor3 = Theme.SurfaceAlt })
                 end)
                 Connect(btn.MouseButton1Click, function()
                     state = not state
@@ -1453,12 +1507,12 @@ function VapeLiteUI:CreateWindow(config)
                 local suffix = cfg.Suffix or ""
                 local dragging = false
 
-                local row = makeRow(46)
+                local row = makeRow(54)
 
                 local label = Create("TextLabel", {
                     Parent = row,
                     BackgroundTransparency = 1,
-                    Position = UDim2.new(0, 10, 0, 2),
+                    Position = UDim2.new(0, 12, 0, 4),
                     Size = UDim2.new(0.6, 0, 0, 22),
                     Font = Theme.Font,
                     Text = cfg.Name or "Slider",
