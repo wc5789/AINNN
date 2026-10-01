@@ -1,6 +1,6 @@
 -- =========================================================
--- OriginOS 风格 UI 库 · 完整版
--- 圆角卡片 · 层次色阶 · 移动端适配 · 内容滚动
+-- OriginOS 风格 UI 库 · 真实还原版
+-- 基于 OriginOS 6/7 官方设计：光影美学 · 空间体系 · 动态透彩
 -- =========================================================
 
 local a = {windowCount = 0, flags = {}, _conns = {}, _guis = {}}
@@ -19,35 +19,43 @@ if not plr then warn("[UI] 必须在 LocalScript 中运行"); return a end
 
 local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 
--- ============ 主题 ============
+-- ============ 主题：动态透彩材质 + 半透明色彩系统 ============
 local C = {
-    Bg        = Color3.fromRGB(18, 18, 20),
-    Surface   = Color3.fromRGB(30, 30, 33),
-    Surface2  = Color3.fromRGB(40, 40, 44),
-    Surface3  = Color3.fromRGB(52, 52, 57),
-    Surface4  = Color3.fromRGB(64, 64, 70),
+    -- 基底：深灰基底 #121212，避免纯黑
+    Bg        = Color3.fromRGB(18, 18, 22),
+    -- 卡片：半透明层次，模拟光影空间
+    Surface   = Color3.fromRGB(28, 28, 34),
+    Surface2  = Color3.fromRGB(36, 36, 44),
+    Surface3  = Color3.fromRGB(48, 48, 58),
+    Surface4  = Color3.fromRGB(62, 62, 74),
+    -- 文字：高亮度白色 #FFFFFF + 动态灰阶降噪
     Text      = Color3.fromRGB(255, 255, 255),
-    TextSub   = Color3.fromRGB(165, 165, 172),
-    TextDim   = Color3.fromRGB(110, 110, 118),
-    Accent    = Color3.fromRGB(131, 132, 255),
+    TextSub   = Color3.fromRGB(160, 160, 175),
+    TextDim   = Color3.fromRGB(105, 105, 120),
+    -- 强调色：OriginOS 常用的青蓝/紫罗兰
+    Accent    = Color3.fromRGB(96, 165, 250),
+    Accent2   = Color3.fromRGB(167, 139, 250),
     Success   = Color3.fromRGB(52, 199, 89),
     Danger    = Color3.fromRGB(255, 69, 58),
     Warn      = Color3.fromRGB(255, 179, 64),
-    Border    = Color3.fromRGB(58, 58, 63),
+    -- 边框：极细、半透明，模拟光影边缘
+    Border    = Color3.fromRGB(255, 255, 255),
+    BorderT   = 0.92,  -- 透明度
     White     = Color3.fromRGB(255, 255, 255),
 }
 
--- ============ 尺寸 ============
+-- ============ 尺寸：G2 圆角 + 紧凑卡片 ============
 local SZ = {
-    WindowW    = 300,
-    HeaderH    = 56,
-    CardH      = 50,
-    CardHBig   = 62,
+    WindowW    = 310,
+    HeaderH    = 52,
+    CardH      = 48,
+    CardHBig   = 60,
     Pad        = 12,
-    Gap        = 8,
-    RadWin     = 20,
-    RadCard    = 14,
-    RadSmall   = 10,
+    Gap        = 6,
+    RadWin     = 22,   -- G2 圆角
+    RadCard    = 16,
+    RadBtn     = 12,
+    RadSmall   = 8,
 }
 
 -- ============ 工具 ============
@@ -68,32 +76,29 @@ local function corner(parent, r)
     return c
 end
 
-local function stroke(parent, color, thickness, transparency)
+-- 光影边缘：极细半透明边框，模拟光线折射
+local function lightEdge(parent, thickness, transparency)
     local s = Instance.new("UIStroke")
-    s.Color = color or C.Border
+    s.Color = C.Border
     s.Thickness = thickness or 1
-    s.Transparency = transparency or 0.6
+    s.Transparency = transparency or C.BorderT
     s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     s.Parent = parent
     return s
 end
 
-local function uiscale(parent)
-    local s = Instance.new("UIScale")
-    s.Parent = parent
-    return s
+-- 弹性动画：模拟真实物理，带回弹
+local function springTween(obj, props, duration)
+    return TweenService:Create(obj,
+        TweenInfo.new(duration or 0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        props)
 end
 
--- 悬停
-local function hover(frame, base, hov)
-    trackConn(frame.MouseEnter:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.18, Enum.EasingStyle.Sine),
-            {BackgroundColor3 = hov}):Play()
-    end))
-    trackConn(frame.MouseLeave:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.18, Enum.EasingStyle.Sine),
-            {BackgroundColor3 = base}):Play()
-    end))
+-- 柔和缓动：模拟动态模糊过渡
+local function softTween(obj, props, duration)
+    return TweenService:Create(obj,
+        TweenInfo.new(duration or 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        props)
 end
 
 -- ============ 全局输入状态 ============
@@ -155,13 +160,13 @@ if UserInputService.TouchEnabled then
     btn.Name = "Toggle"
     btn.AnchorPoint = Vector2.new(0, 1)
     btn.Position = UDim2.new(0, 16, 1, -16)
-    btn.Size = UDim2.new(0, 56, 0, 56)
+    btn.Size = UDim2.new(0, 54, 0, 54)
     btn.BackgroundColor3 = C.Surface2
     btn.AutoButtonColor = false
     btn.Text = ""
     btn.ZIndex = 100
     corner(btn, 18)
-    stroke(btn, C.Border, 1, 0.4)
+    lightEdge(btn, 1, 0.85)
 
     local icon = Instance.new("TextLabel")
     icon.Parent = btn
@@ -170,7 +175,7 @@ if UserInputService.TouchEnabled then
     icon.Font = Enum.Font.GothamBold
     icon.Text = "☰"
     icon.TextColor3 = C.Accent
-    icon.TextSize = 26
+    icon.TextSize = 24
 
     local mDrag, mDragged
     trackConn(btn.InputBegan:Connect(function(input)
@@ -188,9 +193,9 @@ if UserInputService.TouchEnabled then
         if math.abs(d.X) > 6 or math.abs(d.Y) > 6 then mDragged = true end
         local vp = workspace.CurrentCamera.ViewportSize
         btn.Position = UDim2.new(0,
-            math.clamp(mDrag.orig.X.Offset + d.X, 8, vp.X - 64),
+            math.clamp(mDrag.orig.X.Offset + d.X, 8, vp.X - 62),
             0,
-            math.clamp(mDrag.orig.Y.Offset + d.Y, 8, vp.Y - 64))
+            math.clamp(mDrag.orig.Y.Offset + d.Y, 8, vp.Y - 62))
     end))
     trackConn(UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch
@@ -222,9 +227,9 @@ function a:Window(w)
     local vp = workspace.CurrentCamera.ViewportSize
     local winW = math.min(SZ.WindowW, vp.X - 24)
     local winX = isMobile and math.floor((vp.X - winW) / 2) or (25 + (a.windowCount - 1) * 24)
-    local winY = isMobile and 90 or (60 + (a.windowCount - 1) * 24)
+    local winY = isMobile and 80 or (55 + (a.windowCount - 1) * 24)
 
-    -- 窗口主体
+    -- 窗口：堆叠式卡片 + G2 圆角 + 光影边缘
     local win = Instance.new("Frame")
     win.Name = "OriginWindow"
     win.Parent = t
@@ -235,7 +240,18 @@ function a:Window(w)
     win.ClipsDescendants = true
     win.ZIndex = zCounter
     corner(win, SZ.RadWin)
-    stroke(win, C.Border, 1, 0.4)
+    lightEdge(win, 1, 0.88)
+
+    -- 动态透彩：顶部微光渐变，模拟光影效果
+    local topGlow = Instance.new("Frame")
+    topGlow.Name = "TopGlow"
+    topGlow.Parent = win
+    topGlow.BackgroundColor3 = C.Accent
+    topGlow.BackgroundTransparency = 0.94
+    topGlow.BorderSizePixel = 0
+    topGlow.Position = UDim2.new(0, 0, 0, 0)
+    topGlow.Size = UDim2.new(1, 0, 0, 1)
+    topGlow.ZIndex = 1
 
     -- 头部
     local header = Instance.new("Frame")
@@ -248,7 +264,7 @@ function a:Window(w)
     local title = Instance.new("TextLabel")
     title.Parent = header
     title.BackgroundTransparency = 1
-    title.Position = UDim2.new(0, 20, 0, 0)
+    title.Position = UDim2.new(0, 18, 0, 0)
     title.Size = UDim2.new(1, -80, 1, 0)
     title.Font = Enum.Font.GothamBold
     title.Text = Txt(w)
@@ -256,24 +272,25 @@ function a:Window(w)
     title.TextSize = 15
     title.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- 折叠按钮
+    -- 折叠按钮：G2 圆角 + 光影边缘
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Parent = header
     toggleBtn.AnchorPoint = Vector2.new(1, 0.5)
-    toggleBtn.Position = UDim2.new(1, -14, 0.5, 0)
-    toggleBtn.Size = UDim2.new(0, 34, 0, 34)
-    toggleBtn.BackgroundColor3 = C.Surface2
+    toggleBtn.Position = UDim2.new(1, -12, 0.5, 0)
+    toggleBtn.Size = UDim2.new(0, 32, 0, 32)
+    toggleBtn.BackgroundColor3 = C.Surface3
+    toggleBtn.BackgroundTransparency = 0.5
     toggleBtn.BorderSizePixel = 0
     toggleBtn.Text = ""
     toggleBtn.AutoButtonColor = false
-    corner(toggleBtn, 10)
-    hover(toggleBtn, C.Surface2, C.Surface3)
+    corner(toggleBtn, SZ.RadSmall)
+    lightEdge(toggleBtn, 1, 0.8)
 
     local chevron = Instance.new("ImageLabel")
     chevron.Parent = toggleBtn
     chevron.AnchorPoint = Vector2.new(0.5, 0.5)
     chevron.Position = UDim2.new(0.5, 0, 0.5, 0)
-    chevron.Size = UDim2.new(0, 16, 0, 16)
+    chevron.Size = UDim2.new(0, 14, 0, 14)
     chevron.BackgroundTransparency = 1
     chevron.Image = "rbxassetid://3926305904"
     chevron.ImageRectOffset = Vector2.new(524, 764)
@@ -281,7 +298,7 @@ function a:Window(w)
     chevron.ImageColor3 = C.TextSub
     chevron.Rotation = 180
 
-    -- 内容区
+    -- 内容区：ScrollingFrame + 弹性滚动
     local body = Instance.new("ScrollingFrame")
     body.Name = "Body"
     body.Parent = win
@@ -291,7 +308,7 @@ function a:Window(w)
     body.Size = UDim2.new(1, 0, 0, 0)
     body.CanvasSize = UDim2.new(0, 0, 0, 0)
     body.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    body.ScrollBarThickness = 3
+    body.ScrollBarThickness = 2
     body.ScrollBarImageColor3 = C.Surface4
     body.ScrollingDirection = Enum.ScrollingDirection.Y
     body.ElasticBehavior = Enum.ElasticBehavior.WhenScrollable
@@ -304,7 +321,7 @@ function a:Window(w)
 
     local pad = Instance.new("UIPadding")
     pad.Parent = body
-    pad.PaddingTop = UDim.new(0, 8)
+    pad.PaddingTop = UDim.new(0, 6)
     pad.PaddingBottom = UDim.new(0, 14)
     pad.PaddingLeft = UDim.new(0, SZ.Pad)
     pad.PaddingRight = UDim.new(0, SZ.Pad)
@@ -325,8 +342,8 @@ function a:Window(w)
 
     local function computeBodyH()
         local vp2 = workspace.CurrentCamera.ViewportSize
-        local maxH = math.max(120, vp2.Y * 0.68)
-        local contentH = layout.AbsoluteContentSize.Y + 22
+        local maxH = math.max(120, vp2.Y * 0.65)
+        local contentH = layout.AbsoluteContentSize.Y + 20
         return math.min(contentH, maxH)
     end
 
@@ -334,7 +351,7 @@ function a:Window(w)
         if not expanded then return end
         local bodyH = computeBodyH()
         local winH = SZ.HeaderH + bodyH
-        local info = TweenInfo.new(animate and 0.2 or 0,
+        local info = TweenInfo.new(animate and 0.25 or 0,
             Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         TweenService:Create(win, info,
             {Size = UDim2.new(0, winW, 0, winH)}):Play()
@@ -353,15 +370,14 @@ function a:Window(w)
         expanded = not expanded
         local targetBodyH = expanded and computeBodyH() or 0
         local targetH = SZ.HeaderH + targetBodyH
-        local info = TweenInfo.new(0.25,
-            Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        TweenService:Create(win, info,
-            {Size = UDim2.new(0, winW, 0, targetH)}):Play()
-        TweenService:Create(body, info,
-            {Size = UDim2.new(1, 0, 0, targetBodyH)}):Play()
-        TweenService:Create(chevron, TweenInfo.new(0.25),
-            {Rotation = expanded and 0 or 180}):Play()
-        task.delay(0.26, function() isAnimating = false end)
+        -- 弹性动画：模拟真实物理回弹
+        springTween(win,
+            {Size = UDim2.new(0, winW, 0, targetH)}, 0.28):Play()
+        springTween(body,
+            {Size = UDim2.new(1, 0, 0, targetBodyH)}, 0.28):Play()
+        softTween(chevron,
+            {Rotation = expanded and 0 or 180}, 0.22):Play()
+        task.delay(0.3, function() isAnimating = false end)
     end
 
     trackConn(toggleBtn.MouseButton1Click:Connect(toggleExpand))
@@ -380,11 +396,11 @@ function a:Window(w)
         s.Name = "Section"
         s.Parent = body
         s.BackgroundTransparency = 1
-        s.Size = UDim2.new(1, 0, 0, 22)
+        s.Size = UDim2.new(1, 0, 0, 20)
         s.Font = Enum.Font.GothamBold
         s.Text = string.upper(Txt(L))
         s.TextColor3 = C.TextDim
-        s.TextSize = 11
+        s.TextSize = 10
         s.TextXAlignment = Enum.TextXAlignment.Left
         s.TextYAlignment = Enum.TextYAlignment.Bottom
         return s
@@ -395,9 +411,11 @@ function a:Window(w)
         card.Name = "LabelCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
-        card.Size = UDim2.new(1, 0, 0, 44)
+        card.Size = UDim2.new(1, 0, 0, 42)
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local text = Instance.new("TextLabel")
         text.Parent = card
@@ -418,11 +436,14 @@ function a:Window(w)
         card.Name = "ButtonCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardH)
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
-        local sc = uiscale(card)
+        local sc = Instance.new("UIScale")
+        sc.Parent = card
 
         local btn = Instance.new("TextButton")
         btn.Parent = card
@@ -442,23 +463,20 @@ function a:Window(w)
         text.TextSize = 14
         text.TextXAlignment = Enum.TextXAlignment.Left
 
+        -- 弹性缩放反馈
         trackConn(btn.MouseButton1Down:Connect(function()
-            TweenService:Create(card, TweenInfo.new(0.08),
-                {BackgroundColor3 = C.Surface3}):Play()
-            TweenService:Create(sc, TweenInfo.new(0.08), {Scale = 0.97}):Play()
+            softTween(card, {BackgroundColor3 = C.Surface3}, 0.1):Play()
+            springTween(sc, {Scale = 0.96}, 0.12):Play()
         end))
         trackConn(btn.MouseButton1Up:Connect(function()
-            TweenService:Create(card, TweenInfo.new(0.15),
-                {BackgroundColor3 = C.Surface2}):Play()
-            TweenService:Create(sc, TweenInfo.new(0.15), {Scale = 1}):Play()
+            softTween(card, {BackgroundColor3 = C.Surface2}, 0.2):Play()
+            springTween(sc, {Scale = 1}, 0.2):Play()
         end))
         trackConn(btn.MouseEnter:Connect(function()
-            TweenService:Create(card, TweenInfo.new(0.15),
-                {BackgroundColor3 = C.Surface3}):Play()
+            softTween(card, {BackgroundColor3 = C.Surface3}, 0.18):Play()
         end))
         trackConn(btn.MouseLeave:Connect(function()
-            TweenService:Create(card, TweenInfo.new(0.15),
-                {BackgroundColor3 = C.Surface2}):Play()
+            softTween(card, {BackgroundColor3 = C.Surface2}, 0.18):Play()
         end))
         trackConn(btn.MouseButton1Click:Connect(function()
             local ok, err = pcall(N)
@@ -467,12 +485,10 @@ function a:Window(w)
         return card
     end
 
-    -- Toggle
+    -- Toggle：胶囊开关 + 弹性滑动
     function K:Toggle(Q, R, S, N, T)
         if type(R) == "boolean" and type(S) == "function" then
-            N = S
-            S = R
-            R = Q
+            N = S; S = R; R = Q
         end
         T = (type(T) == "table") and T or a.flags
         R = R or Q
@@ -484,38 +500,43 @@ function a:Window(w)
         card.Name = "ToggleCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardH)
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local text = Instance.new("TextLabel")
         text.Parent = card
         text.BackgroundTransparency = 1
         text.Position = UDim2.new(0, 16, 0, 0)
-        text.Size = UDim2.new(1, -80, 1, 0)
+        text.Size = UDim2.new(1, -76, 1, 0)
         text.Font = Enum.Font.GothamMedium
         text.Text = Txt(Q)
         text.TextColor3 = C.Text
         text.TextSize = 14
         text.TextXAlignment = Enum.TextXAlignment.Left
 
+        -- 胶囊开关
         local swBg = Instance.new("Frame")
         swBg.Parent = card
         swBg.AnchorPoint = Vector2.new(1, 0.5)
-        swBg.Position = UDim2.new(1, -16, 0.5, 0)
-        swBg.Size = UDim2.new(0, 44, 0, 26)
+        swBg.Position = UDim2.new(1, -14, 0.5, 0)
+        swBg.Size = UDim2.new(0, 40, 0, 24)
         swBg.BackgroundColor3 = S and C.Accent or C.Surface4
+        swBg.BackgroundTransparency = 0.15
         swBg.BorderSizePixel = 0
-        corner(swBg, 13)
+        corner(swBg, 12)
+        lightEdge(swBg, 1, 0.85)
 
         local swKnob = Instance.new("Frame")
         swKnob.Parent = swBg
         swKnob.AnchorPoint = Vector2.new(0, 0.5)
-        swKnob.Position = UDim2.new(0, S and 20 or 2, 0.5, 0)
-        swKnob.Size = UDim2.new(0, 22, 0, 22)
+        swKnob.Position = UDim2.new(0, S and 18 or 2, 0.5, 0)
+        swKnob.Size = UDim2.new(0, 20, 0, 20)
         swKnob.BackgroundColor3 = C.White
         swKnob.BorderSizePixel = 0
-        corner(swKnob, 11)
+        corner(swKnob, 10)
 
         local btn = Instance.new("TextButton")
         btn.Parent = card
@@ -526,10 +547,10 @@ function a:Window(w)
 
         trackConn(btn.MouseButton1Click:Connect(function()
             T[R] = not T[R]
-            TweenService:Create(swBg, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {BackgroundColor3 = T[R] and C.Accent or C.Surface4}):Play()
-            TweenService:Create(swKnob, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Position = UDim2.new(0, T[R] and 20 or 2, 0.5, 0)}):Play()
+            softTween(swBg,
+                {BackgroundColor3 = T[R] and C.Accent or C.Surface4}, 0.22):Play()
+            springTween(swKnob,
+                {Position = UDim2.new(0, T[R] and 18 or 2, 0.5, 0)}, 0.28):Play()
             local ok, err = pcall(N, T[R])
             if not ok then warn("[UI] Toggle:", err) end
         end))
@@ -541,7 +562,7 @@ function a:Window(w)
         return card
     end
 
-    -- Slider
+    -- Slider：细进度条 + 圆形滑块
     function K:Slider(Y, Z, _, a0, N, S, T, step)
         if type(Z) == "number" and type(_) == "number" then
             local _min, _max = Z, _
@@ -573,15 +594,17 @@ function a:Window(w)
         card.Name = "SliderCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardHBig)
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local title = Instance.new("TextLabel")
         title.Parent = card
         title.BackgroundTransparency = 1
-        title.Position = UDim2.new(0, 16, 0, 10)
-        title.Size = UDim2.new(1, -100, 0, 18)
+        title.Position = UDim2.new(0, 16, 0, 8)
+        title.Size = UDim2.new(1, -100, 0, 16)
         title.Font = Enum.Font.GothamMedium
         title.Text = Txt(Y)
         title.TextColor3 = C.Text
@@ -592,19 +615,21 @@ function a:Window(w)
         valueLbl.Parent = card
         valueLbl.BackgroundTransparency = 1
         valueLbl.AnchorPoint = Vector2.new(1, 0)
-        valueLbl.Position = UDim2.new(1, -16, 0, 10)
-        valueLbl.Size = UDim2.new(0, 80, 0, 18)
+        valueLbl.Position = UDim2.new(1, -16, 0, 8)
+        valueLbl.Size = UDim2.new(0, 80, 0, 16)
         valueLbl.Font = Enum.Font.GothamSemibold
         valueLbl.Text = Txt(current)
         valueLbl.TextColor3 = C.Accent
         valueLbl.TextSize = 13
         valueLbl.TextXAlignment = Enum.TextXAlignment.Right
 
+        -- 细进度条
         local barBg = Instance.new("Frame")
         barBg.Parent = card
-        barBg.Position = UDim2.new(0, 16, 1, -18)
-        barBg.Size = UDim2.new(1, -32, 0, 6)
+        barBg.Position = UDim2.new(0, 16, 1, -16)
+        barBg.Size = UDim2.new(1, -32, 0, 5)
         barBg.BackgroundColor3 = C.Surface4
+        barBg.BackgroundTransparency = 0.3
         barBg.BorderSizePixel = 0
         corner(barBg, 3)
 
@@ -615,14 +640,16 @@ function a:Window(w)
         barFill.BorderSizePixel = 0
         corner(barFill, 3)
 
+        -- 圆形滑块
         local barKnob = Instance.new("Frame")
         barKnob.Parent = barBg
         barKnob.AnchorPoint = Vector2.new(0.5, 0.5)
         barKnob.Position = UDim2.new((current - minV) / (maxV - minV), 0, 0.5, 0)
-        barKnob.Size = UDim2.new(0, 14, 0, 14)
+        barKnob.Size = UDim2.new(0, 12, 0, 12)
         barKnob.BackgroundColor3 = C.White
         barKnob.BorderSizePixel = 0
-        corner(barKnob, 7)
+        corner(barKnob, 6)
+        lightEdge(barKnob, 1, 0.7)
 
         local btn = Instance.new("TextButton")
         btn.Parent = card
@@ -684,9 +711,11 @@ function a:Window(w)
         card.Name = "TextBoxCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardH)
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local title = Instance.new("TextLabel")
         title.Parent = card
@@ -702,9 +731,10 @@ function a:Window(w)
         local box = Instance.new("TextBox")
         box.Parent = card
         box.AnchorPoint = Vector2.new(1, 0.5)
-        box.Position = UDim2.new(1, -14, 0.5, 0)
-        box.Size = UDim2.new(0, 130, 0, 32)
+        box.Position = UDim2.new(1, -12, 0.5, 0)
+        box.Size = UDim2.new(0, 130, 0, 30)
         box.BackgroundColor3 = C.Surface
+        box.BackgroundTransparency = 0.3
         box.BorderSizePixel = 0
         box.Font = Enum.Font.Gotham
         box.Text = Txt(Q)
@@ -713,18 +743,18 @@ function a:Window(w)
         box.PlaceholderColor3 = C.TextDim
         box.TextSize = 13
         box.ClearTextOnFocus = false
-        corner(box, 8)
-        stroke(box, C.Border, 1, 0.5)
+        corner(box, SZ.RadSmall)
+        lightEdge(box, 1, 0.85)
 
         if Q ~= nil then a.flags[F] = Q end
 
         trackConn(box.Focused:Connect(function()
-            TweenService:Create(box, TweenInfo.new(0.18),
-                {BackgroundColor3 = C.Surface3}):Play()
+            softTween(box, {BackgroundColor3 = C.Surface3}, 0.18):Play()
+            softTween(box, {BackgroundTransparency = 0.1}, 0.18):Play()
         end))
         trackConn(box.FocusLost:Connect(function(enter)
-            TweenService:Create(box, TweenInfo.new(0.18),
-                {BackgroundColor3 = C.Surface}):Play()
+            softTween(box, {BackgroundColor3 = C.Surface}, 0.18):Play()
+            softTween(box, {BackgroundTransparency = 0.3}, 0.18):Play()
             a.flags[F] = box.Text
             local ok, err = pcall(N, box.Text, enter)
             if not ok then warn("[UI] TextBox:", err) end
@@ -744,10 +774,12 @@ function a:Window(w)
         card.Name = "DropdownCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardH)
         card.ClipsDescendants = true
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local main = Instance.new("TextButton")
         main.Parent = card
@@ -771,8 +803,8 @@ function a:Window(w)
         valueLbl.Parent = card
         valueLbl.BackgroundTransparency = 1
         valueLbl.AnchorPoint = Vector2.new(1, 0)
-        valueLbl.Position = UDim2.new(1, -42, 0, 0)
-        valueLbl.Size = UDim2.new(0.5, -50, 0, SZ.CardH)
+        valueLbl.Position = UDim2.new(1, -40, 0, 0)
+        valueLbl.Size = UDim2.new(0.5, -48, 0, SZ.CardH)
         valueLbl.Font = Enum.Font.Gotham
         valueLbl.Text = Txt(selected)
         valueLbl.TextColor3 = C.TextSub
@@ -782,8 +814,8 @@ function a:Window(w)
         local arrow = Instance.new("ImageLabel")
         arrow.Parent = card
         arrow.AnchorPoint = Vector2.new(1, 0.5)
-        arrow.Position = UDim2.new(1, -16, 0, SZ.CardH / 2)
-        arrow.Size = UDim2.new(0, 14, 0, 14)
+        arrow.Position = UDim2.new(1, -14, 0, SZ.CardH / 2)
+        arrow.Size = UDim2.new(0, 12, 0, 12)
         arrow.BackgroundTransparency = 1
         arrow.Image = "rbxassetid://3926305904"
         arrow.ImageRectOffset = Vector2.new(524, 764)
@@ -795,7 +827,7 @@ function a:Window(w)
         holder.Parent = card
         holder.BackgroundTransparency = 1
         holder.Position = UDim2.new(0, 0, 0, SZ.CardH)
-        holder.Size = UDim2.new(1, 0, 0, #options * 40)
+        holder.Size = UDim2.new(1, 0, 0, #options * 36)
 
         local lyt = Instance.new("UIListLayout")
         lyt.Parent = holder
@@ -811,19 +843,18 @@ function a:Window(w)
         local expanded = false
         local function setExpanded(state)
             expanded = state
-            local targetH = SZ.CardH + (expanded and (#options * 40 + 8) or 0)
-            TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size = UDim2.new(1, 0, 0, targetH)}):Play()
-            TweenService:Create(arrow, TweenInfo.new(0.2),
-                {Rotation = expanded and 0 or 180}):Play()
+            local targetH = SZ.CardH + (expanded and (#options * 36 + 6) or 0)
+            springTween(card, {Size = UDim2.new(1, 0, 0, targetH)}, 0.26):Play()
+            softTween(arrow, {Rotation = expanded and 0 or 180}, 0.2):Play()
         end
 
         for idx, opt in ipairs(options) do
             local ob = Instance.new("TextButton")
             ob.Parent = holder
             ob.BackgroundColor3 = C.Surface
+            ob.BackgroundTransparency = 0.4
             ob.BorderSizePixel = 0
-            ob.Size = UDim2.new(1, 0, 0, 38)
+            ob.Size = UDim2.new(1, 0, 0, 34)
             ob.Font = Enum.Font.Gotham
             ob.Text = "   " .. Txt(opt)
             ob.TextColor3 = C.TextSub
@@ -831,12 +862,12 @@ function a:Window(w)
             ob.TextXAlignment = Enum.TextXAlignment.Left
             ob.AutoButtonColor = false
             ob.LayoutOrder = idx
-            corner(ob, 8)
+            corner(ob, SZ.RadSmall)
             trackConn(ob.MouseEnter:Connect(function()
-                TweenService:Create(ob, TweenInfo.new(0.15), {BackgroundColor3 = C.Surface3}):Play()
+                softTween(ob, {BackgroundColor3 = C.Surface3, BackgroundTransparency = 0.2}, 0.15):Play()
             end))
             trackConn(ob.MouseLeave:Connect(function()
-                TweenService:Create(ob, TweenInfo.new(0.15), {BackgroundColor3 = C.Surface}):Play()
+                softTween(ob, {BackgroundColor3 = C.Surface, BackgroundTransparency = 0.4}, 0.15):Play()
             end))
             trackConn(ob.MouseButton1Click:Connect(function()
                 selected = opt
@@ -864,9 +895,11 @@ function a:Window(w)
         card.Name = "KeybindCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardH)
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local title = Instance.new("TextLabel")
         title.Parent = card
@@ -882,17 +915,18 @@ function a:Window(w)
         local btn = Instance.new("TextButton")
         btn.Parent = card
         btn.AnchorPoint = Vector2.new(1, 0.5)
-        btn.Position = UDim2.new(1, -14, 0.5, 0)
-        btn.Size = UDim2.new(0, 72, 0, 30)
+        btn.Position = UDim2.new(1, -12, 0.5, 0)
+        btn.Size = UDim2.new(0, 68, 0, 28)
         btn.BackgroundColor3 = C.Surface
+        btn.BackgroundTransparency = 0.3
         btn.BorderSizePixel = 0
         btn.Font = Enum.Font.GothamSemibold
         btn.Text = current.Name
         btn.TextColor3 = C.Accent
         btn.TextSize = 12
         btn.AutoButtonColor = false
-        corner(btn, 8)
-        stroke(btn, C.Border, 1, 0.5)
+        corner(btn, SZ.RadSmall)
+        lightEdge(btn, 1, 0.85)
 
         local listening = false
         trackConn(btn.MouseButton1Click:Connect(function()
@@ -923,24 +957,24 @@ function a:Window(w)
         a.flags[F] = current
 
         local presets = {
-            Color3.fromRGB(255, 69, 58),
-            Color3.fromRGB(255, 179, 64),
-            Color3.fromRGB(255, 214, 10),
-            Color3.fromRGB(52, 199, 89),
-            Color3.fromRGB(48, 176, 199),
-            Color3.fromRGB(131, 132, 255),
-            Color3.fromRGB(191, 90, 242),
-            Color3.fromRGB(255, 255, 255),
+            Color3.fromRGB(96, 165, 250),   -- 蓝
+            Color3.fromRGB(167, 139, 250),  -- 紫
+            Color3.fromRGB(52, 199, 89),    -- 绿
+            Color3.fromRGB(255, 179, 64),   -- 橙
+            Color3.fromRGB(255, 69, 58),    -- 红
+            Color3.fromRGB(255, 255, 255),  -- 白
         }
 
         local card = Instance.new("Frame")
         card.Name = "ColorCard"
         card.Parent = body
         card.BackgroundColor3 = C.Surface2
+        card.BackgroundTransparency = 0.35
         card.BorderSizePixel = 0
         card.Size = UDim2.new(1, 0, 0, SZ.CardH)
         card.ClipsDescendants = true
         corner(card, SZ.RadCard)
+        lightEdge(card, 1, 0.9)
 
         local title = Instance.new("TextLabel")
         title.Parent = card
@@ -956,25 +990,25 @@ function a:Window(w)
         local prev = Instance.new("TextButton")
         prev.Parent = card
         prev.AnchorPoint = Vector2.new(1, 0.5)
-        prev.Position = UDim2.new(1, -16, 0, SZ.CardH / 2)
-        prev.Size = UDim2.new(0, 48, 0, 26)
+        prev.Position = UDim2.new(1, -14, 0, SZ.CardH / 2)
+        prev.Size = UDim2.new(0, 44, 0, 24)
         prev.BackgroundColor3 = current
         prev.BorderSizePixel = 0
         prev.Text = ""
         prev.AutoButtonColor = false
-        corner(prev, 8)
-        stroke(prev, C.Border, 1, 0.5)
+        corner(prev, SZ.RadSmall)
+        lightEdge(prev, 1, 0.7)
 
-        local rows = math.ceil(#presets / 4)
+        local rows = math.ceil(#presets / 3)
         local holder = Instance.new("Frame")
         holder.Parent = card
         holder.BackgroundTransparency = 1
         holder.Position = UDim2.new(0, 0, 0, SZ.CardH)
-        holder.Size = UDim2.new(1, 0, 0, rows * 34 + 8)
+        holder.Size = UDim2.new(1, 0, 0, rows * 32 + 6)
 
         local grid = Instance.new("UIGridLayout")
         grid.Parent = holder
-        grid.CellSize = UDim2.new(0, 40, 0, 26)
+        grid.CellSize = UDim2.new(0, 40, 0, 24)
         grid.CellPadding = UDim2.new(0, 8, 0, 8)
         grid.SortOrder = Enum.SortOrder.LayoutOrder
         grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -982,9 +1016,8 @@ function a:Window(w)
         local expanded = false
         local function setExpanded(state)
             expanded = state
-            local targetH = SZ.CardH + (expanded and (rows * 34 + 8) or 0)
-            TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size = UDim2.new(1, 0, 0, targetH)}):Play()
+            local targetH = SZ.CardH + (expanded and (rows * 32 + 6) or 0)
+            springTween(card, {Size = UDim2.new(1, 0, 0, targetH)}, 0.26):Play()
         end
 
         for idx, c in ipairs(presets) do
@@ -995,7 +1028,8 @@ function a:Window(w)
             cb.Text = ""
             cb.AutoButtonColor = false
             cb.LayoutOrder = idx
-            corner(cb, 8)
+            corner(cb, SZ.RadSmall)
+            lightEdge(cb, 1, 0.75)
             trackConn(cb.MouseButton1Click:Connect(function()
                 current = c
                 a.flags[F] = c
