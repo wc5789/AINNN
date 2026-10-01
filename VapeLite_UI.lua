@@ -3023,7 +3023,4 @@ function VapeLiteUI:IsMobile()
     return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 end
 
---[[ EXAMPLE USAGE
-
-
 return VapeLiteUI
