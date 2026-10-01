@@ -59,10 +59,10 @@ local Theme = {
     Font          = Enum.Font.Gotham,
     FontMedium    = Enum.Font.GothamMedium,
     FontSemi      = Enum.Font.GothamSemibold,
-    Radius        = 3,
-    RadiusSmall   = 2,
-    RowHeight     = 43,
-    IconSize      = 43,
+    Radius        = 2,
+    RadiusSmall   = 1,
+    RowHeight     = 40,
+    IconSize      = 40,
 }
 
 -- ============================================================
@@ -162,18 +162,19 @@ end
 --- Make a frame draggable by a handle, clamped to the viewport.
 --- @param handle GuiObject
 --- @param target GuiObject
-local function AddDragging(handle, target)
+local function AddDragging(handle, target, registrar)
+    local bind = registrar or Connect
     local dragging = false
     local dragInput, dragStart, startPos
 
-    Connect(handle.InputBegan, function(input)
+    bind(handle.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = target.Position
 
-            Connect(input.Changed, function()
+            bind(input.Changed, function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
                 end
@@ -181,20 +182,28 @@ local function AddDragging(handle, target)
         end
     end)
 
-    Connect(handle.InputChanged, function(input)
+    bind(handle.InputChanged, function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement
             or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
 
-    Connect(UserInputService.InputChanged, function(input)
+    bind(UserInputService.InputChanged, function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
             local viewport = GetViewport()
-            local newX = math.clamp(startPos.X.Offset + delta.X, 0, math.max(0, viewport.X - target.AbsoluteSize.X))
-            local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, math.max(0, viewport.Y - target.AbsoluteSize.Y))
-            target.Position = UDim2.new(0, newX, 0, newY)
+            local baseX = startPos.X.Offset + delta.X
+            local baseY = startPos.Y.Offset + delta.Y
+            local absoluteX = viewport.X * startPos.X.Scale + baseX
+            local absoluteY = viewport.Y * startPos.Y.Scale + baseY
+            local minX = target.AnchorPoint.X * target.AbsoluteSize.X
+            local minY = target.AnchorPoint.Y * target.AbsoluteSize.Y
+            local maxX = viewport.X - (1 - target.AnchorPoint.X) * target.AbsoluteSize.X
+            local maxY = viewport.Y - (1 - target.AnchorPoint.Y) * target.AbsoluteSize.Y
+            absoluteX = math.clamp(absoluteX, minX, math.max(minX, maxX))
+            absoluteY = math.clamp(absoluteY, minY, math.max(minY, maxY))
+            target.Position = UDim2.new(0, absoluteX, 0, absoluteY)
         end
     end)
 end
@@ -276,7 +285,7 @@ end
 -- ============================================================
 local VapeLiteUI = {}
 VapeLiteUI.__index = VapeLiteUI
-VapeLiteUI.Version      = "3.0.0"
+VapeLiteUI.Version      = "3.1.0"
 VapeLiteUI.Theme        = Theme
 VapeLiteUI._elements    = {}
 VapeLiteUI._windows     = {}
@@ -284,6 +293,7 @@ VapeLiteUI._search      = {}
 VapeLiteUI._activeNotifs = {}
 VapeLiteUI._gui         = nil
 VapeLiteUI._watermark   = nil
+VapeLiteUI._watermarkConnections = {}
 
 -- ============================================================
 -- CREATE WINDOW
@@ -316,12 +326,12 @@ function VapeLiteUI:CreateWindow(config)
     local height = mobileMode
         and math.min(requestedHeight, math.max(260, viewportNow.Y - 28))
         or math.min(requestedHeight, math.max(300, viewportNow.Y - 32))
-    local footerH = 0
+    local footerH = showFooter and 26 or 0
     -- Reference proportions: a narrow navigation rail and a dense module list.
-    local topBarH = mobileMode and 32 or 34
+    local topBarH = mobileMode and 30 or 32
     local sidebarW = mobileMode
-        and math.clamp(math.floor(viewportNow.X * 0.27), 82, 102)
-        or math.clamp(math.floor(viewportNow.X * 0.235), 126, 142)
+        and math.clamp(math.floor(viewportNow.X * 0.25), 78, 96)
+        or math.clamp(math.floor(viewportNow.X * 0.215), 116, 136)
 
     local gui = Create("ScreenGui", {
         Name = "VapeLiteUI",
@@ -413,10 +423,10 @@ function VapeLiteUI:CreateWindow(config)
         Position = UDim2.new(0.5, 0, 0.5, 0),
         Size = UDim2.new(0, 10, 0, 1),
     })
-    Connect(minBtn.MouseEnter, function()
+    WindowConnect(minBtn.MouseEnter, function()
         Tween(minLine, 0.1, { BackgroundColor3 = Theme.Text })
     end)
-    Connect(minBtn.MouseLeave, function()
+    WindowConnect(minBtn.MouseLeave, function()
         Tween(minLine, 0.1, { BackgroundColor3 = Theme.TextDim })
     end)
 
@@ -443,11 +453,11 @@ function VapeLiteUI:CreateWindow(config)
             Rotation = i == 1 and 45 or -45,
         })
     end
-    Connect(closeBtn.MouseEnter, function()
+    WindowConnect(closeBtn.MouseEnter, function()
         Tween(closeLines[1], 0.1, { BackgroundColor3 = Theme.Danger })
         Tween(closeLines[2], 0.1, { BackgroundColor3 = Theme.Danger })
     end)
-    Connect(closeBtn.MouseLeave, function()
+    WindowConnect(closeBtn.MouseLeave, function()
         Tween(closeLines[1], 0.1, { BackgroundColor3 = Theme.TextDim })
         Tween(closeLines[2], 0.1, { BackgroundColor3 = Theme.TextDim })
     end)
@@ -606,6 +616,22 @@ function VapeLiteUI:CreateWindow(config)
     window._configFolder = cfgFolder
     window._mobileMode = mobileMode
     window._transitioning = false
+    window._destroyed = false
+    window._connections = {}
+    window._animationToken = 0
+
+    local function WindowConnect(signal, callback)
+        local connection = signal:Connect(callback)
+        window._connections[#window._connections + 1] = connection
+        return connection
+    end
+
+    local function DisconnectWindowConnections()
+        for i = #window._connections, 1, -1 do
+            pcall(function() window._connections[i]:Disconnect() end)
+            window._connections[i] = nil
+        end
+    end
 
     -- Smooth window transition: scale + veil instead of fading only the background.
     local uiScale = Create("UIScale", { Parent = main, Scale = 0.96 })
@@ -613,7 +639,7 @@ function VapeLiteUI:CreateWindow(config)
         Name = "Transition",
         Parent = main,
         BackgroundColor3 = Theme.Background,
-        BackgroundTransparency = 0,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 1, 0),
         ZIndex = 100,
@@ -626,26 +652,26 @@ function VapeLiteUI:CreateWindow(config)
         if transition and transition.Parent then transition.Visible = false end
     end)
 
-    AddDragging(dragArea, main)
+    AddDragging(dragArea, main, WindowConnect)
 
     -- ---- Resizing ----
     local resizing = false
     local resizeStart, sizeStart
-    Connect(resizeGrip.InputBegan, function(input)
+    WindowConnect(resizeGrip.InputBegan, function(input)
         if window._minimized then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
             resizing = true
             resizeStart = input.Position
             sizeStart = main.AbsoluteSize
-            Connect(input.Changed, function()
+            WindowConnect(input.Changed, function()
                 if input.UserInputState == Enum.UserInputState.End then
                     resizing = false
                 end
             end)
         end
     end)
-    Connect(UserInputService.InputChanged, function(input)
+    WindowConnect(UserInputService.InputChanged, function(input)
         if resizing
             and (input.UserInputType == Enum.UserInputType.MouseMovement
                 or input.UserInputType == Enum.UserInputType.Touch) then
@@ -656,12 +682,12 @@ function VapeLiteUI:CreateWindow(config)
             main.Size = UDim2.new(0, newW, 0, newH)
         end
     end)
-    Connect(resizeGrip.MouseEnter, function()
+    WindowConnect(resizeGrip.MouseEnter, function()
         for _, line in ipairs(gripLines) do
             Tween(line, 0.1, { BackgroundColor3 = Theme.Text })
         end
     end)
-    Connect(resizeGrip.MouseLeave, function()
+    WindowConnect(resizeGrip.MouseLeave, function()
         for _, line in ipairs(gripLines) do
             Tween(line, 0.1, { BackgroundColor3 = Theme.TextMuted })
         end
@@ -679,7 +705,7 @@ function VapeLiteUI:CreateWindow(config)
         main.Position = UDim2.new(0, math.max(8, math.floor((vp.X - main.AbsoluteSize.X) / 2)), 0, math.max(8, math.floor((vp.Y - main.AbsoluteSize.Y) / 2)))
     end
     if workspace.CurrentCamera then
-        Connect(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), reflowViewport)
+        WindowConnect(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), reflowViewport)
     end
 
     -- ---- Minimize ----
@@ -721,12 +747,12 @@ function VapeLiteUI:CreateWindow(config)
     end
     window._setMinimized = setMinimized
 
-    Connect(minBtn.MouseButton1Click, function()
+    WindowConnect(minBtn.MouseButton1Click, function()
         setMinimized(true)
     end)
 
     -- Restore on quick tap of the minimized bar (ignore drags)
-    Connect(topBar.InputBegan, function(input)
+    WindowConnect(topBar.InputBegan, function(input)
         if not window._minimized then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
@@ -755,12 +781,12 @@ function VapeLiteUI:CreateWindow(config)
     end)
 
     -- ---- Close (hide) ----
-    Connect(closeBtn.MouseButton1Click, function()
+    WindowConnect(closeBtn.MouseButton1Click, function()
         window:Hide()
     end)
 
     -- ---- Toggle key ----
-    Connect(UserInputService.InputBegan, function(input, processed)
+    WindowConnect(UserInputService.InputBegan, function(input, processed)
         if processed then return end
         if input.KeyCode == window._toggleKey then
             if window._visible then
@@ -822,7 +848,7 @@ function VapeLiteUI:CreateWindow(config)
             bestTab._select()
         end
     end
-    Connect(searchBox:GetPropertyChangedSignal("Text"), function()
+    WindowConnect(searchBox:GetPropertyChangedSignal("Text"), function()
         searchToken = searchToken + 1
         local myToken = searchToken
         task.delay(0.05, function()
@@ -835,39 +861,97 @@ function VapeLiteUI:CreateWindow(config)
     -- ================================================
     -- WINDOW METHODS
     -- ================================================
-    --- Hide the window with a smooth scale-down + veil transition.
+    local function setExternalVisibility(visible, instant)
+        local wm = VapeLiteUI._watermark
+        if wm and wm.frame and wm.frame.Parent then
+            if visible then
+                wm.frame.Visible = true
+                if instant then
+                    wm.frame.BackgroundTransparency = 0.15
+                    if wm.label then wm.label.TextTransparency = 0 end
+                    if wm.dot then wm.dot.BackgroundTransparency = 0 end
+                else
+                    wm.frame.BackgroundTransparency = 1
+                    if wm.label then wm.label.TextTransparency = 1 end
+                    if wm.dot then wm.dot.BackgroundTransparency = 1 end
+                    Tween(wm.frame, 0.20, {BackgroundTransparency = 0.15}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+                    if wm.label then Tween(wm.label, 0.20, {TextTransparency = 0}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out) end
+                    if wm.dot then Tween(wm.dot, 0.20, {BackgroundTransparency = 0}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out) end
+                end
+            else
+                if instant then
+                    wm.frame.Visible = false
+                else
+                    Tween(wm.frame, 0.18, {BackgroundTransparency = 1}, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+                    if wm.label then Tween(wm.label, 0.18, {TextTransparency = 1}, Enum.EasingStyle.Quint, Enum.EasingDirection.In) end
+                    if wm.dot then Tween(wm.dot, 0.18, {BackgroundTransparency = 1}, Enum.EasingStyle.Quint, Enum.EasingDirection.In) end
+                    task.delay(0.19, function()
+                        if wm.frame and wm.frame.Parent and not window._visible then
+                            wm.frame.Visible = false
+                        end
+                    end)
+                end
+            end
+        end
+        for _, notif in ipairs(VapeLiteUI._activeNotifs) do
+            if notif and notif.frame and notif.frame.Parent then
+                if visible then
+                    notif.frame.Visible = true
+                else
+                    notif.frame.Visible = false
+                end
+            end
+        end
+    end
+
+    --- Hide the window with an interruptible scale-down + veil transition.
     function window:Hide()
-        if not window._visible or window._transitioning then return end
+        if window._destroyed then return end
+        if not window._visible and not window._transitioning then return end
+        window._animationToken += 1
+        local token = window._animationToken
         window._transitioning = true
         window._visible = false
+        main.Visible = true
         transition.Visible = true
         transition.BackgroundTransparency = 1
-        Tween(transition, 0.18, { BackgroundTransparency = 0.08 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        Tween(uiScale, 0.24, { Scale = 0.91 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        Tween(main, 0.24, { BackgroundTransparency = 0.12 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        task.delay(0.27, function()
-            if main and main.Parent then main.Visible = false end
-            if transition and transition.Parent then transition.Visible = false end
-            window._transitioning = false
+        setExternalVisibility(false, false)
+        Tween(transition, 0.22, {BackgroundTransparency = 0.16}, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        Tween(uiScale, 0.24, {Scale = 0.90}, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        Tween(main, 0.20, {BackgroundTransparency = 0.06}, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+        task.delay(0.24, function()
+            if window._destroyed or token ~= window._animationToken then return end
+            if not window._visible then
+                main.Visible = false
+                transition.Visible = false
+                window._transitioning = false
+            end
         end)
     end
 
-    --- Show the window with a smooth scale-up + fade-in transition.
+    --- Show the window with an interruptible scale-up + fade-in transition.
     function window:Show()
+        if window._destroyed then return end
         if window._visible and not window._transitioning then return end
+        window._animationToken += 1
+        local token = window._animationToken
         window._transitioning = true
         window._visible = true
         main.Visible = true
         transition.Visible = true
-        transition.BackgroundTransparency = 0.08
-        uiScale.Scale = 0.94
-        main.BackgroundTransparency = 0.16
-        Tween(uiScale, 0.26, { Scale = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        Tween(transition, 0.20, { BackgroundTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        Tween(main, 0.26, { BackgroundTransparency = 0 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        task.delay(0.23, function()
-            if transition and transition.Parent then transition.Visible = false end
-            window._transitioning = false
+        transition.BackgroundTransparency = 0.16
+        uiScale.Scale = 0.90
+        main.BackgroundTransparency = 0.06
+        setExternalVisibility(true, false)
+        Tween(uiScale, 0.25, {Scale = 1}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        Tween(transition, 0.22, {BackgroundTransparency = 1}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        Tween(main, 0.25, {BackgroundTransparency = 0}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        task.delay(0.26, function()
+            if window._destroyed or token ~= window._animationToken then return end
+            if window._visible then
+                transition.Visible = false
+                window._transitioning = false
+            end
         end)
     end
 
@@ -1039,18 +1123,18 @@ function VapeLiteUI:CreateWindow(config)
         end
         tab._select = selectTab
 
-        Connect(tabBtn.MouseEnter, function()
+        WindowConnect(tabBtn.MouseEnter, function()
             if not scroll.Visible then
                 tabBtn.BackgroundTransparency = 0.5
                 tabBtn.BackgroundColor3 = Theme.SurfaceHover
             end
         end)
-        Connect(tabBtn.MouseLeave, function()
+        WindowConnect(tabBtn.MouseLeave, function()
             if not scroll.Visible then
                 tabBtn.BackgroundTransparency = 1
             end
         end)
-        Connect(tabBtn.MouseButton1Click, selectTab)
+        WindowConnect(tabBtn.MouseButton1Click, selectTab)
 
         if tab._index == 1 then
             task.defer(selectTab)
@@ -1153,13 +1237,13 @@ function VapeLiteUI:CreateWindow(config)
             end
             section._setCollapsed = setCollapsed
 
-            Connect(headerBtn.MouseEnter, function()
+            WindowConnect(headerBtn.MouseEnter, function()
                 headerLabel.TextColor3 = Theme.TextDim
             end)
-            Connect(headerBtn.MouseLeave, function()
+            WindowConnect(headerBtn.MouseLeave, function()
                 headerLabel.TextColor3 = collapsed and Theme.TextDim or Theme.TextMuted
             end)
-            Connect(headerBtn.MouseButton1Click, function()
+            WindowConnect(headerBtn.MouseButton1Click, function()
                 setCollapsed(not collapsed)
             end)
 
@@ -1241,10 +1325,10 @@ function VapeLiteUI:CreateWindow(config)
                 local armed = false
                 local armToken = 0
 
-                Connect(btn.MouseEnter, function()
+                WindowConnect(btn.MouseEnter, function()
                     Tween(row, 0.1, { BackgroundColor3 = Theme.RowHover })
                 end)
-                Connect(btn.MouseLeave, function()
+                WindowConnect(btn.MouseLeave, function()
                     Tween(row, 0.1, { BackgroundColor3 = Theme.Row })
                     if armed then
                         armed = false
@@ -1252,7 +1336,7 @@ function VapeLiteUI:CreateWindow(config)
                         label.TextColor3 = Theme.Text
                     end
                 end)
-                Connect(btn.MouseButton1Click, function()
+                WindowConnect(btn.MouseButton1Click, function()
                     if cfg.Confirm then
                         if not armed then
                             armed = true
@@ -1545,15 +1629,15 @@ function VapeLiteUI:CreateWindow(config)
                 end
                 applyState(false)
 
-                Connect(btn.MouseEnter, function()
+                WindowConnect(btn.MouseEnter, function()
                     Tween(row, 0.08, { BackgroundColor3 = Theme.RowHover })
                     Tween(iconHolder, 0.08, { BackgroundColor3 = Theme.SurfaceHover })
                 end)
-                Connect(btn.MouseLeave, function()
+                WindowConnect(btn.MouseLeave, function()
                     Tween(row, 0.08, { BackgroundColor3 = Theme.Row })
                     Tween(iconHolder, 0.08, { BackgroundColor3 = Theme.SurfaceAlt })
                 end)
-                Connect(btn.MouseButton1Click, function()
+                WindowConnect(btn.MouseButton1Click, function()
                     state = not state
                     applyState(true)
                     task.spawn(SafeCall, cfg.Callback, state)
@@ -1684,21 +1768,21 @@ function VapeLiteUI:CreateWindow(config)
                     setValue(min + (max - min) * alpha, true)
                 end
 
-                Connect(row.InputBegan, function(input)
+                WindowConnect(row.InputBegan, function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1
                         or input.UserInputType == Enum.UserInputType.Touch then
                         dragging = true
                         updateFromInput(input)
                     end
                 end)
-                Connect(UserInputService.InputChanged, function(input)
+                WindowConnect(UserInputService.InputChanged, function(input)
                     if dragging
                         and (input.UserInputType == Enum.UserInputType.MouseMovement
                             or input.UserInputType == Enum.UserInputType.Touch) then
                         updateFromInput(input)
                     end
                 end)
-                Connect(UserInputService.InputEnded, function(input)
+                WindowConnect(UserInputService.InputEnded, function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1
                         or input.UserInputType == Enum.UserInputType.Touch then
                         dragging = false
@@ -1847,13 +1931,13 @@ function VapeLiteUI:CreateWindow(config)
                         TextSize = 12,
                         TextXAlignment = Enum.TextXAlignment.Left,
                     })
-                    Connect(item.MouseEnter, function()
+                    WindowConnect(item.MouseEnter, function()
                         Tween(item, 0.1, { BackgroundColor3 = Theme.SurfaceHover })
                     end)
-                    Connect(item.MouseLeave, function()
+                    WindowConnect(item.MouseLeave, function()
                         Tween(item, 0.1, { BackgroundColor3 = Theme.SurfaceAlt })
                     end)
-                    Connect(item.MouseButton1Click, function()
+                    WindowConnect(item.MouseButton1Click, function()
                         selected = option
                         valueLabel.Text = tostring(option)
                         collapse()
@@ -1866,19 +1950,19 @@ function VapeLiteUI:CreateWindow(config)
                     buildItem(i, option)
                 end
 
-                Connect(btn.MouseEnter, function()
+                WindowConnect(btn.MouseEnter, function()
                     if not expanded then
                         Tween(row, 0.1, { BackgroundColor3 = Theme.RowHover })
                         Tween(btn, 0.1, { BackgroundColor3 = Theme.RowHover })
                     end
                 end)
-                Connect(btn.MouseLeave, function()
+                WindowConnect(btn.MouseLeave, function()
                     if not expanded then
                         Tween(row, 0.1, { BackgroundColor3 = Theme.Row })
                         Tween(btn, 0.1, { BackgroundColor3 = Theme.Row })
                     end
                 end)
-                Connect(btn.MouseButton1Click, function()
+                WindowConnect(btn.MouseButton1Click, function()
                     if expanded then
                         collapse()
                     else
@@ -2095,13 +2179,13 @@ function VapeLiteUI:CreateWindow(config)
                         TextXAlignment = Enum.TextXAlignment.Left,
                     })
 
-                    Connect(item.MouseEnter, function()
+                    WindowConnect(item.MouseEnter, function()
                         Tween(item, 0.1, { BackgroundColor3 = Theme.SurfaceHover })
                     end)
-                    Connect(item.MouseLeave, function()
+                    WindowConnect(item.MouseLeave, function()
                         Tween(item, 0.1, { BackgroundColor3 = Theme.SurfaceAlt })
                     end)
-                    Connect(item.MouseButton1Click, function()
+                    WindowConnect(item.MouseButton1Click, function()
                         selectedSet[option] = not selectedSet[option] or nil
                         Tween(checkBox, 0.12, {
                             BackgroundColor3 = selectedSet[option] and Theme.Accent or Theme.Track,
@@ -2111,19 +2195,19 @@ function VapeLiteUI:CreateWindow(config)
                     end)
                 end
 
-                Connect(btn.MouseEnter, function()
+                WindowConnect(btn.MouseEnter, function()
                     if not expanded then
                         Tween(row, 0.1, { BackgroundColor3 = Theme.RowHover })
                         Tween(btn, 0.1, { BackgroundColor3 = Theme.RowHover })
                     end
                 end)
-                Connect(btn.MouseLeave, function()
+                WindowConnect(btn.MouseLeave, function()
                     if not expanded then
                         Tween(row, 0.1, { BackgroundColor3 = Theme.Row })
                         Tween(btn, 0.1, { BackgroundColor3 = Theme.Row })
                     end
                 end)
-                Connect(btn.MouseButton1Click, function()
+                WindowConnect(btn.MouseButton1Click, function()
                     if expanded then
                         collapse()
                     else
@@ -2209,7 +2293,7 @@ function VapeLiteUI:CreateWindow(config)
                 end
 
                 local captureConn
-                Connect(btn.MouseButton1Click, function()
+                WindowConnect(btn.MouseButton1Click, function()
                     if capturing then
                         capturing = false
                         if captureConn then captureConn:Disconnect() end
@@ -2250,7 +2334,7 @@ function VapeLiteUI:CreateWindow(config)
                     end)
                 end)
 
-                Connect(UserInputService.InputBegan, function(input, processed)
+                WindowConnect(UserInputService.InputBegan, function(input, processed)
                     if processed then return end
                     if capturing then return end
                     if currentKey and input.KeyCode == currentKey then
@@ -2261,17 +2345,17 @@ function VapeLiteUI:CreateWindow(config)
                         end
                     end
                 end)
-                Connect(UserInputService.InputEnded, function(input)
+                WindowConnect(UserInputService.InputEnded, function(input)
                     if capturing then return end
                     if mode == "Hold" and currentKey and input.KeyCode == currentKey then
                         task.spawn(SafeCall, cfg.Callback, false)
                     end
                 end)
 
-                Connect(btn.MouseEnter, function()
+                WindowConnect(btn.MouseEnter, function()
                     Tween(row, 0.1, { BackgroundColor3 = Theme.RowHover })
                 end)
-                Connect(btn.MouseLeave, function()
+                WindowConnect(btn.MouseLeave, function()
                     Tween(row, 0.1, { BackgroundColor3 = Theme.Row })
                 end)
 
@@ -2346,10 +2430,10 @@ function VapeLiteUI:CreateWindow(config)
 
                 local api
 
-                Connect(textbox.Focused, function()
+                WindowConnect(textbox.Focused, function()
                     Tween(inputFrame, 0.12, { BackgroundColor3 = Theme.SurfaceHover })
                 end)
-                Connect(textbox.FocusLost, function(enterPressed)
+                WindowConnect(textbox.FocusLost, function(enterPressed)
                     Tween(inputFrame, 0.12, { BackgroundColor3 = Theme.Input })
                     if enterPressed or cfg.FireOnUnfocus then
                         local text = textbox.Text
@@ -2574,7 +2658,7 @@ function VapeLiteUI:CreateWindow(config)
                         ZIndex = 2,
                     })
                     rgbBoxes[i] = box
-                    Connect(box.FocusLost, function()
+                    WindowConnect(box.FocusLost, function()
                         local r = math.clamp(tonumber(rgbBoxes[1].Text) or 0, 0, 255)
                         local g = math.clamp(tonumber(rgbBoxes[2].Text) or 0, 0, 255)
                         local b = math.clamp(tonumber(rgbBoxes[3].Text) or 0, 0, 255)
@@ -2634,7 +2718,7 @@ function VapeLiteUI:CreateWindow(config)
                 end
 
                 for _, layer in ipairs({ svFrame, whiteOverlay, blackOverlay }) do
-                    Connect(layer.InputBegan, function(input)
+                    WindowConnect(layer.InputBegan, function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1
                             or input.UserInputType == Enum.UserInputType.Touch then
                             svDragging = true
@@ -2642,7 +2726,7 @@ function VapeLiteUI:CreateWindow(config)
                         end
                     end)
                 end
-                Connect(hueBar.InputBegan, function(input)
+                WindowConnect(hueBar.InputBegan, function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1
                         or input.UserInputType == Enum.UserInputType.Touch then
                         hueDragging = true
@@ -2653,7 +2737,7 @@ function VapeLiteUI:CreateWindow(config)
                         task.spawn(SafeCall, cfg.Callback, api.Value)
                     end
                 end)
-                Connect(UserInputService.InputChanged, function(input)
+                WindowConnect(UserInputService.InputChanged, function(input)
                     if input.UserInputType ~= Enum.UserInputType.MouseMovement
                         and input.UserInputType ~= Enum.UserInputType.Touch then
                         return
@@ -2670,7 +2754,7 @@ function VapeLiteUI:CreateWindow(config)
                         end
                     end
                 end)
-                Connect(UserInputService.InputEnded, function(input)
+                WindowConnect(UserInputService.InputEnded, function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1
                         or input.UserInputType == Enum.UserInputType.Touch then
                         svDragging = false
@@ -2678,19 +2762,19 @@ function VapeLiteUI:CreateWindow(config)
                     end
                 end)
 
-                Connect(btn.MouseEnter, function()
+                WindowConnect(btn.MouseEnter, function()
                     if not expanded then
                         Tween(row, 0.1, { BackgroundColor3 = Theme.RowHover })
                         Tween(btn, 0.1, { BackgroundColor3 = Theme.RowHover })
                     end
                 end)
-                Connect(btn.MouseLeave, function()
+                WindowConnect(btn.MouseLeave, function()
                     if not expanded then
                         Tween(row, 0.1, { BackgroundColor3 = Theme.Row })
                         Tween(btn, 0.1, { BackgroundColor3 = Theme.Row })
                     end
                 end)
-                Connect(btn.MouseButton1Click, function()
+                WindowConnect(btn.MouseButton1Click, function()
                     if expanded then
                         collapse()
                     else
@@ -2911,6 +2995,10 @@ function VapeLiteUI:CreateWindow(config)
     -- ================================================
     --- Destroy this window and release its connections.
     function window:Destroy()
+        if window._destroyed then return end
+        window._destroyed = true
+        window._animationToken += 1
+        DisconnectWindowConnections()
         if gui then
             gui:Destroy()
         end
@@ -3022,9 +3110,14 @@ function VapeLiteUI:Notify(title, content, duration, notifyType)
     RelayoutNotifications()
 
     local dismissed = false
+    local dismissConnection
     local function dismiss()
         if dismissed then return end
         dismissed = true
+        if dismissConnection then
+            pcall(function() dismissConnection:Disconnect() end)
+            dismissConnection = nil
+        end
         Tween(holder, 0.18, { BackgroundTransparency = 1 })
         Tween(accentBar, 0.18, { BackgroundTransparency = 1 })
         Tween(titleLabel, 0.18, { TextTransparency = 1 })
@@ -3042,7 +3135,7 @@ function VapeLiteUI:Notify(title, content, duration, notifyType)
         end)
     end
 
-    Connect(holder.InputBegan, function(input)
+    dismissConnection = Connect(holder.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
             dismiss()
@@ -3104,14 +3197,23 @@ function VapeLiteUI:SetWatermark(text)
             TextSize = 12,
         })
 
-        self._watermark = { frame = frame, label = label }
-        AddDragging(frame, frame)
+        self._watermark = { frame = frame, label = label, dot = accentDot }
+        local function watermarkConnect(signal, callback)
+            local connection = signal:Connect(callback)
+            table.insert(self._watermarkConnections, connection)
+            return connection
+        end
+        AddDragging(frame, frame, watermarkConnect)
     end
     self._watermark.label.Text = tostring(text)
 end
 
 --- Remove the watermark.
 function VapeLiteUI:RemoveWatermark()
+    for i = #self._watermarkConnections, 1, -1 do
+        pcall(function() self._watermarkConnections[i]:Disconnect() end)
+        self._watermarkConnections[i] = nil
+    end
     if self._watermark then
         self._watermark.frame:Destroy()
         self._watermark = nil
@@ -3134,9 +3236,11 @@ end
 -- ============================================================
 --- Fully destroy the library, disconnect all connections and remove the GUI.
 function VapeLiteUI:Destroy()
-    for _, window in ipairs(self._windows) do
+    for i = #self._windows, 1, -1 do
+        local window = self._windows[i]
         pcall(function() window:Destroy() end)
     end
+    pcall(function() self:RemoveWatermark() end)
     table.clear(self._windows)
     table.clear(self._elements)
     table.clear(self._search)
