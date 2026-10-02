@@ -1,5 +1,5 @@
 --[[
-    QWQ UI Library V7
+    QWQ UI Library V8
     Rebuilt commercial-style mobile-first Roblox UI framework
     Focus: consistent design system, deterministic cleanup, touch-safe input,
     responsive layout, extensible component API.
@@ -13,26 +13,26 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "7.0.0"
+Library.Version = "8.0.0"
 Library.Theme = {
-    Accent = Color3.fromRGB(244, 170, 72),
-    AccentSoft = Color3.fromRGB(255, 213, 145),
-    AccentDeep = Color3.fromRGB(183, 111, 36),
-    Background = Color3.fromRGB(7, 7, 6),
-    Surface = Color3.fromRGB(14, 14, 13),
-    Surface2 = Color3.fromRGB(20, 20, 18),
-    Surface3 = Color3.fromRGB(27, 27, 24),
-    Border = Color3.fromRGB(58, 56, 50),
-    BorderSoft = Color3.fromRGB(38, 37, 34),
-    Text = Color3.fromRGB(244, 242, 235),
-    Text2 = Color3.fromRGB(164, 161, 151),
-    Muted = Color3.fromRGB(92, 90, 83),
+    Accent = Color3.fromRGB(104, 92, 224),
+    AccentSoft = Color3.fromRGB(231, 227, 255),
+    AccentDeep = Color3.fromRGB(75, 63, 175),
+    Background = Color3.fromRGB(248, 247, 244),
+    Surface = Color3.fromRGB(255, 255, 255),
+    Surface2 = Color3.fromRGB(239, 238, 234),
+    Surface3 = Color3.fromRGB(224, 224, 220),
+    Border = Color3.fromRGB(202, 201, 197),
+    BorderSoft = Color3.fromRGB(220, 219, 214),
+    Text = Color3.fromRGB(39, 39, 43),
+    Text2 = Color3.fromRGB(100, 99, 103),
+    Muted = Color3.fromRGB(151, 149, 145),
     White = Color3.fromRGB(255, 255, 255),
-    Success = Color3.fromRGB(120, 192, 128),
-    Warning = Color3.fromRGB(244, 170, 72),
-    Error = Color3.fromRGB(222, 92, 82),
-    Dim = Color3.fromRGB(0, 0, 0),
-    DimTransparency = 0.52,
+    Success = Color3.fromRGB(43, 164, 105),
+    Warning = Color3.fromRGB(222, 146, 45),
+    Error = Color3.fromRGB(211, 72, 83),
+    Dim = Color3.fromRGB(64, 68, 80),
+    DimTransparency = 0.86,
 }
 
 Library.FontFamily = "rbxasset://fonts/families/BuilderSans.json"
@@ -40,8 +40,8 @@ Library.Config = {
     MobileBreakpoint = 560,
     DesktopWidth = 600,
     DesktopHeight = 410,
-    MobileWidth = 0.95,
-    MobileHeight = 0.88,
+    MobileWidth = 0.92,
+    MobileHeight = 0.80,
     Animation = 0.14,
     SpringAnimation = 0.30,
     SnapAnimation = 0.09,
@@ -284,7 +284,7 @@ local function makeNotification(title, message, duration, kind)
 
     local code = createLabel(toast, kind == "success" and "OK" or kind == "error" and "ERR" or kind == "warn" and "WARN" or "INFO", 7, accent, Enum.FontWeight.Bold)
     code.Position = UDim2.new(0, 10, 0, 7)
-    code.Size = UDim2.new(0, 34, 0, 10)
+    code.Size = UDim2.new(0, 20, 0, 10)
     local titleLabel = createLabel(toast, tostring(title):upper(), 10, Library.Theme.Text, Enum.FontWeight.Bold)
     titleLabel.Position = UDim2.new(0, 48, 0, 5)
     titleLabel.Size = UDim2.new(1, -60, 0, 14)
@@ -360,17 +360,17 @@ function Library:CreateWindow(titleText, accentColor)
 
     local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.AnchorPoint = Vector2.new(0.5, 0.5)
-    Main.Position = UDim2.fromScale(0.5, 0.5)
+    Main.AnchorPoint = Vector2.new(0, 0)
+    Main.Position = UDim2.fromOffset(0, 0)
     Main.Size = UDim2.new(0, 56, 0, 56)
     Main.BackgroundColor3 = Library.Theme.Surface
-    Main.BackgroundTransparency = 0.05
+    Main.BackgroundTransparency = 0
     Main.BorderSizePixel = 0
     Main.ClipsDescendants = true
     Main.ZIndex = 10
     Main.Parent = ScreenGui
-    local MainCorner = addCorner(Main, 7)
-    local MainStroke = addStroke(Main, Library.Theme.Border, 0.22)
+    local MainCorner = addCorner(Main, 8)
+    local MainStroke = addStroke(Main, Library.Theme.Border, 0.12)
 
     local UIScale = Instance.new("UIScale")
     UIScale.Scale = 1
@@ -424,22 +424,38 @@ function Library:CreateWindow(titleText, accentColor)
         return camera and camera.ViewportSize.X < Library.Config.MobileBreakpoint
     end
 
+    local function floatingSize()
+        return isMobile() and 52 or 56
+    end
+
     local function updateResponsive()
         if not Main.Parent or isOpen then return end
-        local mobile = isMobile()
-        if mobile then
-            Main.Size = UDim2.new(0, 52, 0, 52)
-        else
-            Main.Size = UDim2.new(0, 56, 0, 56)
-        end
+        local fs = floatingSize()
+        Main.Size = UDim2.new(0, fs, 0, fs)
     end
-    local cameraConn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() task.defer(updateResponsive) end)
+    local cameraConn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        task.defer(function()
+            updateResponsive()
+            if not Main.Parent then return end
+            local camera = workspace.CurrentCamera
+            if not camera then return end
+            local vp = camera.ViewportSize
+            local sx, sy = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
+            if not isOpen then
+                local p = Main.Position
+                local x = math.clamp(p.X.Offset, 8, math.max(8, vp.X - sx - 8))
+                local y = math.clamp(p.Y.Offset, 8, math.max(8, vp.Y - sy - 8))
+                floatingPosition = UDim2.fromOffset(x, y)
+                Main.Position = floatingPosition
+            end
+        end)
+    end)
     windowMaid:Add(cameraConn)
     updateResponsive()
     do
         local camera = workspace.CurrentCamera
         local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
-        local bw = isMobile() and 52 or 56
+        local bw = floatingSize()
         floatingPosition = UDim2.fromOffset(math.max(10, vp.X - bw - 18), math.max(10, vp.Y - bw - 74))
         Main.Position = floatingPosition
     end
@@ -489,7 +505,7 @@ function Library:CreateWindow(titleText, accentColor)
     title.Size = UDim2.new(1, -38, 0, 34)
     title.TextYAlignment = Enum.TextYAlignment.Bottom
 
-    local headerMeta = createLabel(Brand, "QWQ / PRECISION UI", 7, Library.Theme.Muted, Enum.FontWeight.Bold)
+    local headerMeta = createLabel(Brand, "QWQ / STUDIO UI", 7, Library.Theme.Muted, Enum.FontWeight.Bold)
     headerMeta.Position = UDim2.new(0, 29, 0, 34)
     headerMeta.Size = UDim2.new(1, -38, 0, 13)
     headerMeta.TextXAlignment = Enum.TextXAlignment.Left
@@ -520,7 +536,8 @@ function Library:CreateWindow(titleText, accentColor)
     Sidebar.Name = "Sidebar"
     Sidebar.Position = UDim2.new(0, 0, 0, 58)
     Sidebar.Size = UDim2.new(0, 144, 1, -58)
-    Sidebar.BackgroundTransparency = 1
+    Sidebar.BackgroundColor3 = Library.Theme.Background
+    Sidebar.BackgroundTransparency = 0.25
     Sidebar.ClipsDescendants = true
     Sidebar.Parent = Content
 
@@ -570,7 +587,7 @@ function Library:CreateWindow(titleText, accentColor)
         local camera = workspace.CurrentCamera
         local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
         local compact = vp.X < Library.Config.MobileBreakpoint
-        local side = compact and 92 or 144
+        local side = compact and 102 or 150
         local headerHeight = compact and 54 or 58
         Sidebar.Position = UDim2.new(0, 0, 0, headerHeight)
         Sidebar.Size = UDim2.new(0, side, 1, -headerHeight)
@@ -633,30 +650,33 @@ function Library:CreateWindow(titleText, accentColor)
         cardIndex += 1
         local card = Instance.new("Frame")
         card.Size = UDim2.new(1, 0, 0, height)
-        surface(card, 2, {transparency = 0.01, strokeTransparency = 0.38})
+        surface(card, 5, {transparency = 0.0, strokeTransparency = 0.22})
         card.Parent = parent
 
-        local index = createLabel(card, string.format("%02d", cardIndex), 7, Library.Theme.Muted, Enum.FontWeight.Bold)
-        index.Position = UDim2.new(0, 7, 0, 0)
-        index.Size = UDim2.new(0, 18, 0, 14)
-        index.TextXAlignment = Enum.TextXAlignment.Left
-        index.ZIndex = 3
+        local cornerMark = Instance.new("Frame")
+        cornerMark.Name = "AccentMark"
+        cornerMark.Size = UDim2.new(0, 7, 0, 7)
+        cornerMark.Position = UDim2.new(0, 0, 0, 0)
+        cornerMark.BackgroundColor3 = accent
+        cornerMark.BorderSizePixel = 0
+        cornerMark.Parent = card
 
-        local rail = Instance.new("Frame")
-        rail.Name = "AccentRail"
-        rail.Position = UDim2.new(0, 0, 0, 5)
-        rail.Size = UDim2.new(0, 2, 1, -10)
-        rail.BackgroundColor3 = accent
-        rail.BackgroundTransparency = 0.82
-        rail.BorderSizePixel = 0
-        rail.Parent = card
-        addCorner(rail, 1)
+        local edge = Instance.new("Frame")
+        edge.Name = "CardEdge"
+        edge.Size = UDim2.new(1, -18, 0, 1)
+        edge.Position = UDim2.new(0, 9, 0, 0)
+        edge.BackgroundColor3 = accent
+        edge.BackgroundTransparency = 0.82
+        edge.BorderSizePixel = 0
+        edge.Parent = card
 
         card.MouseEnter:Connect(function()
-            tween(rail, 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 0.22})
+            tween(edge, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 0.48})
+            tween(cornerMark, 0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {Size = UDim2.new(0, 10, 0, 10)})
         end)
         card.MouseLeave:Connect(function()
-            tween(rail, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 0.88})
+            tween(edge, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 0.82})
+            tween(cornerMark, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Size = UDim2.new(0, 7, 0, 7)})
         end)
         return card
     end
@@ -686,7 +706,7 @@ function Library:CreateWindow(titleText, accentColor)
             mark.BorderSizePixel = 0
             mark.Parent = holder
             addCorner(mark, 2)
-            local l = createLabel(holder, tostring(text):upper(), 9, Library.Theme.Text2, Enum.FontWeight.Bold)
+            local l = createLabel(holder, tostring(text), 9, Library.Theme.Text2, Enum.FontWeight.Bold)
             l.Position = UDim2.new(0, 9, 0, 0)
             l.Size = UDim2.new(1, -10, 1, 0)
             return holder
@@ -699,7 +719,7 @@ function Library:CreateWindow(titleText, accentColor)
             holder.Parent = page
             local line = Instance.new("Frame")
             line.AnchorPoint = Vector2.new(0.5, 0.5)
-            line.Position = UDim2.fromScale(0.5, 0.5)
+            line.Position = UDim2.new(0.5, 0, 0.5, 0)
             line.Size = UDim2.new(1, -18, 0, 1)
             line.BackgroundColor3 = Library.Theme.Border
             line.BackgroundTransparency = 0.25
@@ -729,8 +749,8 @@ function Library:CreateWindow(titleText, accentColor)
             hit.Parent = b
 
             local label = createLabel(b, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
-            label.Position = UDim2.new(0, 34, 0, 0)
-            label.Size = UDim2.new(1, -72, 1, 0)
+            label.Position = UDim2.new(0, 20, 0, 0)
+            label.Size = UDim2.new(1, -62, 1, 0)
 
             local meta = createLabel(b, "EXEC", 7, Library.Theme.Muted, Enum.FontWeight.Bold)
             meta.Position = UDim2.new(1, -62, 0, 5)
@@ -776,31 +796,32 @@ function Library:CreateWindow(titleText, accentColor)
             click.Parent = card
 
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
-            label.Position = UDim2.new(0, 34, 0, 0)
-            label.Size = UDim2.new(1, -116, 1, 0)
+            label.Position = UDim2.new(0, 20, 0, 0)
+            label.Size = UDim2.new(1, -106, 1, 0)
 
             local stateText = createLabel(card, "OFF", 7, Library.Theme.Muted, Enum.FontWeight.Bold)
-            stateText.Position = UDim2.new(1, -93, 0, 6)
-            stateText.Size = UDim2.new(0, 35, 0, 10)
+            stateText.Position = UDim2.new(1, -124, 0, 6)
+            stateText.Size = UDim2.new(0, 42, 0, 10)
             stateText.TextXAlignment = Enum.TextXAlignment.Right
 
             local switch = Instance.new("Frame")
-            switch.Size = UDim2.new(0, 43, 0, 20)
-            switch.Position = UDim2.new(1, -56, 0.5, -10)
+            switch.Size = UDim2.new(0, 54, 0, 22)
+            switch.Position = UDim2.new(1, -68, 0.5, -11)
             switch.BackgroundColor3 = Library.Theme.Surface3
             switch.BorderSizePixel = 0
             switch.Parent = card
-            addCorner(switch, 4)
+            addCorner(switch, 5)
             local switchStroke = addStroke(switch, Library.Theme.Border, 0.35)
 
             local track = Instance.new("Frame")
-            track.Size = UDim2.new(1, -8, 0, 2)
-            track.Position = UDim2.new(0, 4, 0.5, -1)
+            track.Size = UDim2.new(1, -10, 0, 2)
+            track.Position = UDim2.new(0, 5, 0.5, -1)
             track.BackgroundColor3 = Library.Theme.Border
             track.BorderSizePixel = 0
             track.Parent = switch
 
             local active = Instance.new("Frame")
+            active.Name = "ActiveRail"
             active.Size = UDim2.new(0, 0, 1, 0)
             active.BackgroundColor3 = accent
             active.BorderSizePixel = 0
@@ -827,9 +848,9 @@ function Library:CreateWindow(titleText, accentColor)
             local function render(instant)
                 local duration = instant and 0 or Library.Config.SpringAnimation
                 local style = instant and Enum.EasingStyle.Linear or Enum.EasingStyle.Back
-                local x = state and 35 or 8
+                local x = state and 44 or 10
                 tween(block, duration, style, Enum.EasingDirection.Out, {Position = UDim2.new(0, x, 0.5, 0), BackgroundColor3 = state and Library.Theme.White or Library.Theme.Text2})
-                tween(active, duration, style, Enum.EasingDirection.Out, {Size = UDim2.new(0, state and 27 or 0, 1, 0)})
+                tween(active, duration, style, Enum.EasingDirection.Out, {Size = UDim2.new(0, state and 39 or 0, 1, 0)})
                 tween(switchStroke, duration * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Color = state and accent or Library.Theme.Border, Transparency = state and 0.18 or 0.35})
                 tween(blockStroke, duration * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Color = state and accent or Library.Theme.Border, Transparency = state and 0 or 0.05})
                 tween(stateText, duration * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {TextColor3 = state and accent or Library.Theme.Muted})
@@ -852,16 +873,16 @@ function Library:CreateWindow(titleText, accentColor)
             local value = clampNumber(default == nil and min or default, min, max)
             local card = makeCard(page, 54)
             local label = createLabel(card, text, 10, Library.Theme.Text, Enum.FontWeight.SemiBold)
-            label.Position = UDim2.new(0, 34, 0, 3)
-            label.Size = UDim2.new(1, -80, 0, 16)
+            label.Position = UDim2.new(0, 20, 0, 3)
+            label.Size = UDim2.new(1, -70, 0, 16)
             local valueLabel = createLabel(card, string.format("%g", value), 9, accent, Enum.FontWeight.Bold)
             valueLabel.Position = UDim2.new(1, -58, 0, 3)
             valueLabel.Size = UDim2.new(0, 45, 0, 16)
             valueLabel.TextXAlignment = Enum.TextXAlignment.Right
 
             local track = Instance.new("Frame")
-            track.Position = UDim2.new(0, 34, 0, 30)
-            track.Size = UDim2.new(1, -47, 0, 3)
+            track.Position = UDim2.new(0, 20, 0, 30)
+            track.Size = UDim2.new(1, -33, 0, 3)
             track.BackgroundColor3 = Library.Theme.Surface3
             track.BorderSizePixel = 0
             track.Parent = card
@@ -878,6 +899,7 @@ function Library:CreateWindow(titleText, accentColor)
             knob.BorderSizePixel = 0
             knob.Parent = track
             addCorner(knob, 2)
+            knob.Rotation = 45
             addStroke(knob, accent, 0.05)
             for i=0,10 do
                 local tick=Instance.new("Frame")
@@ -913,8 +935,8 @@ function Library:CreateWindow(titleText, accentColor)
         function API:CreateInput(placeholder, callback)
             local card = makeCard(page, 40)
             local box = Instance.new("TextBox")
-            box.Size = UDim2.new(1, -46, 1, 0)
-            box.Position = UDim2.new(0, 34, 0, 0)
+            box.Size = UDim2.new(1, -32, 1, 0)
+            box.Position = UDim2.new(0, 20, 0, 0)
             box.BackgroundTransparency = 1
             box.PlaceholderText = placeholder or "Enter value..."
             box.PlaceholderColor3 = Library.Theme.Muted
@@ -947,9 +969,9 @@ function Library:CreateWindow(titleText, accentColor)
             local arrow=createLabel(card,"+",15,Library.Theme.Text2,Enum.FontWeight.Bold)
             arrow.Position=UDim2.new(1,-38,0,0); arrow.Size=UDim2.new(0,25,0,headerHeight); arrow.TextXAlignment=Enum.TextXAlignment.Center
             local line=Instance.new("Frame")
-            line.Position=UDim2.new(0,34,1,-1); line.Size=UDim2.new(1,-47,0,1); line.BackgroundColor3=Library.Theme.BorderSoft; line.BorderSizePixel=0; line.Parent=card
+            line.Position=UDim2.new(0,34,1,-1); line.Size=UDim2.new(1,-33,0,1); line.BackgroundColor3=Library.Theme.BorderSoft; line.BorderSizePixel=0; line.Parent=card
             local optionsFrame=Instance.new("Frame")
-            optionsFrame.Position=UDim2.new(0,34,0,headerHeight+5); optionsFrame.Size=UDim2.new(1,-47,0,0); optionsFrame.BackgroundTransparency=1; optionsFrame.Parent=card
+            optionsFrame.Position=UDim2.new(0,34,0,headerHeight+5); optionsFrame.Size=UDim2.new(1,-33,0,0); optionsFrame.BackgroundTransparency=1; optionsFrame.Parent=card
             local list=Instance.new("UIListLayout"); list.Padding=UDim.new(0,2); list.Parent=optionsFrame
             local function bodyHeight() return (#options==0 and 6 or (#options*optionHeight+(#options-1)*2+6)) end
             local function renderOpen(v)
@@ -983,7 +1005,7 @@ function Library:CreateWindow(titleText, accentColor)
             local listenConn
             local card = makeCard(page, 44)
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
-            label.Position = UDim2.new(0, 34, 0, 0)
+            label.Position = UDim2.new(0, 20, 0, 0)
             label.Size = UDim2.new(1, -112, 1, 0)
             local button = Instance.new("TextButton")
             button.Size = UDim2.new(0, 82, 0, 25)
@@ -1029,8 +1051,8 @@ function Library:CreateWindow(titleText, accentColor)
             local current = default or accent
             local card = makeCard(page, 54)
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
-            label.Position = UDim2.new(0, 34, 0, 5)
-            label.Size = UDim2.new(1, -76, 0, 18)
+            label.Position = UDim2.new(0, 20, 0, 5)
+            label.Size = UDim2.new(1, -66, 0, 18)
             local preview = Instance.new("TextButton")
             preview.Size = UDim2.new(0, 42, 0, 23)
             preview.Position = UDim2.new(1, -55, 0, 4)
@@ -1042,7 +1064,7 @@ function Library:CreateWindow(titleText, accentColor)
             addStroke(preview, Library.Theme.White, 0.45)
 
             local row = Instance.new("Frame")
-            row.Position = UDim2.new(0, 34, 0, 29)
+            row.Position = UDim2.new(0, 20, 0, 29)
             row.Size = UDim2.new(1, -47, 0, 15)
             row.BackgroundTransparency = 1
             row.Parent = card
@@ -1149,7 +1171,7 @@ function Library:CreateWindow(titleText, accentColor)
         scrollRail.Position = UDim2.new(1, -5, 0, 10)
         scrollRail.Size = UDim2.new(0, 2, 1, -20)
         scrollRail.BackgroundColor3 = Library.Theme.Border
-        scrollRail.BackgroundTransparency = 0.72
+        scrollRail.BackgroundTransparency = 0.35
         scrollRail.BorderSizePixel = 0
         scrollRail.ZIndex = 30
         scrollRail.Visible = false
@@ -1161,7 +1183,7 @@ function Library:CreateWindow(titleText, accentColor)
         scrollThumb.Size = UDim2.new(1, 0, 0, 34)
         scrollThumb.Position = UDim2.new(0, 0, 0, 0)
         scrollThumb.BackgroundColor3 = accent
-        scrollThumb.BackgroundTransparency = 0.15
+        scrollThumb.BackgroundTransparency = 0
         scrollThumb.BorderSizePixel = 0
         scrollThumb.ZIndex = 31
         scrollThumb.Parent = scrollRail
@@ -1201,7 +1223,7 @@ function Library:CreateWindow(titleText, accentColor)
         end)
 
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, 0, 0, 36)
+        button.Size = UDim2.new(1, 0, 0, 39)
         button.BackgroundColor3 = Library.Theme.Surface
         button.BackgroundTransparency = 1
         button.Text = ""
@@ -1259,7 +1281,7 @@ function Library:CreateWindow(titleText, accentColor)
         Content.Visible = false
         tween(Dimmer, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 1})
         spring(MainCorner, 0.30, {CornerRadius = UDim.new(0, 7)}, Enum.EasingDirection.In)
-        local t = spring(Main, 0.40, {Size = UDim2.new(0, 56, 0, 56), Position = floatingPosition}, Enum.EasingDirection.In)
+        local t = spring(Main, 0.40, {Size = UDim2.new(0, floatingSize(), 0, floatingSize()), Position = floatingPosition}, Enum.EasingDirection.In)
         if t then t.Completed:Connect(function() transitioning = false Bubble.Visible = true end) end
     end)
     closeButton = headerButton("×", -34, function()
@@ -1277,18 +1299,26 @@ function Library:CreateWindow(titleText, accentColor)
         if t then t.Completed:Connect(function() windowMaid:Destroy() end) else windowMaid:Destroy() end
     end)
 
+    local function centeredWindowPosition(size)
+        local camera = workspace.CurrentCamera
+        local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+        local w = size.X.Offset > 0 and size.X.Offset or vp.X * size.X.Scale
+        local h = size.Y.Offset > 0 and size.Y.Offset or vp.Y * size.Y.Scale
+        return UDim2.fromOffset(math.max(10, (vp.X - w) * 0.5), math.max(10, (vp.Y - h) * 0.5))
+    end
+
     local function openWindow()
         if closing or transitioning or isOpen then return end
         isOpen = true
         transitioning = true
         floatingPosition = Main.Position
         Bubble.Visible = false
-        Main.BackgroundTransparency = 0.05
+        Main.BackgroundTransparency = 0
         MainStroke.Transparency = 0.5
         local size = windowSize()
         tween(Dimmer, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = Library.Theme.DimTransparency})
-        spring(MainCorner, 0.30, {CornerRadius = UDim.new(0, 7)})
-        local t = spring(Main, 0.46, {Size = size, Position = UDim2.fromScale(0.5, 0.5)})
+        spring(MainCorner, 0.30, {CornerRadius = UDim.new(0, 8)})
+        local t = spring(Main, 0.46, {Size = size, Position = centeredWindowPosition(size)})
         if t then t.Completed:Connect(function() Content.Visible = true transitioning = false end) end
     end
 
@@ -1306,9 +1336,10 @@ function Library:CreateWindow(titleText, accentColor)
             local camera = workspace.CurrentCamera
             local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
             local sx, sy = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
-            local x = math.clamp((dragStart.X.Scale * vp.X) + dragStart.X.Offset + delta.X, 10, vp.X - sx - 10)
-            local y = math.clamp((dragStart.Y.Scale * vp.Y) + dragStart.Y.Offset + delta.Y, 10, vp.Y - sy - 10)
+            local x = math.clamp(dragStart.X.Offset + delta.X, 10, math.max(10, vp.X - sx - 10))
+            local y = math.clamp(dragStart.Y.Offset + delta.Y, 10, math.max(10, vp.Y - sy - 10))
             Main.Position = UDim2.fromOffset(x, y)
+            floatingPosition = Main.Position
         end, function(endInput)
             local moved = (endInput.Position - clickStart).Magnitude
             if moved < 8 then
@@ -1350,9 +1381,10 @@ function Library:CreateWindow(titleText, accentColor)
                 local camera = workspace.CurrentCamera
                 local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
                 local sx, sy = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
-                local x = math.clamp((startPos.X.Scale * vp.X) + startPos.X.Offset + delta.X, 8, vp.X - sx - 8)
-                local y = math.clamp((startPos.Y.Scale * vp.Y) + startPos.Y.Offset + delta.Y, 8, vp.Y - sy - 8)
+                local x = math.clamp(startPos.X.Offset + delta.X, 8, math.max(8, vp.X - sx - 8))
+                local y = math.clamp(startPos.Y.Offset + delta.Y, 8, math.max(8, vp.Y - sy - 8))
                 Main.Position = UDim2.fromOffset(x, y)
+                floatingPosition = Main.Position
             end, function() end)
         end
     end)
@@ -1378,7 +1410,7 @@ function Library:CreateWindow(titleText, accentColor)
             transitioning = true
             Content.Visible = false
             tween(Dimmer, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 1})
-            local t = spring(Main, 0.34, {Size = UDim2.new(0, 56, 0, 56), Position = floatingPosition}, Enum.EasingDirection.In)
+            local t = spring(Main, 0.34, {Size = UDim2.new(0, floatingSize(), 0, floatingSize()), Position = floatingPosition}, Enum.EasingDirection.In)
             if t then t.Completed:Connect(function() transitioning = false Bubble.Visible = true end) end
         end
     end
@@ -1418,7 +1450,7 @@ function Library:CreateWindow(titleText, accentColor)
             end
         end
         for _, obj in ipairs(ScreenGui:GetDescendants()) do
-            if obj.Name == "AccentRail" or obj.Name == "ActiveRail" or obj.Name == "ScrollThumb" then
+            if obj.Name == "AccentRail" or obj.Name == "AccentMark" or obj.Name == "CardEdge" or obj.Name == "ActiveRail" or obj.Name == "ScrollThumb" then
                 obj.BackgroundColor3 = color
             elseif obj.Name == "Indicator" then
                 local stroke = obj:FindFirstChildOfClass("UIStroke")
