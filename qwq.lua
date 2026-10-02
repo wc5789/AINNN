@@ -1,3 +1,10 @@
+--[[
+    QWQ UI Library V14 "PAPERLINE"
+    - Redesigned palette: warm porcelain + muted slate blue accent
+    - Central-anchored window with refined morph animation
+    - Compact default size + adjustable via Library.Config
+]]
+
 local Library = {}
 
 local TweenService = game:GetService("TweenService")
@@ -6,7 +13,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "16.1.0"
+Library.Version = "14.0.0"
 
 Library.Theme = {
     Accent = Color3.fromRGB(104, 122, 162),
@@ -50,9 +57,6 @@ Library.Config = {
     SnapAnimation = 0.09,
     OpenDuration = 0.46,
     CloseDuration = 0.36,
-    TabSwitchDuration = 0.32,
-    TabIndicatorDuration = 0.34,
-    TabSlideOffset = 28,
     TapThreshold = 12,
 }
 
@@ -205,15 +209,10 @@ local function beginPointer(owner, input, move, ended)
 end
 
 local function endPointer(owner)
-    local removed
-    for input, session in pairs(PointerSessions) do
-        if session.owner == owner then
-            removed = session
-            PointerSessions[input] = nil
-        end
-    end
+    local input, session = sessionForOwner(owner)
+    if input then PointerSessions[input] = nil end
     if MouseOwner == owner then MouseOwner = nil end
-    return removed
+    return session
 end
 
 UserInputService.InputChanged:Connect(function(input)
@@ -231,9 +230,8 @@ end)
 local function releaseInput(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         if not MouseOwner then return end
-        local owner = MouseOwner
-        local _, session = sessionForOwner(owner)
-        endPointer(owner)
+        local _, session = sessionForOwner(MouseOwner)
+        endPointer(MouseOwner)
         if session and session.ended then pcall(session.ended, input) end
         return
     end
@@ -281,6 +279,10 @@ local function logoMark(parent, px, accent)
     addStroke(b, Library.Theme.Border, 0.4)
     return holder
 end
+
+-- ================================================================
+-- Notifications
+-- ================================================================
 
 local NotificationGui
 local NotificationList
@@ -408,6 +410,10 @@ function Library:Success(message, duration) self:Notify("Success", message, dura
 function Library:Warn(message, duration) self:Notify("Warning", message, duration or 3, "warn") end
 function Library:Error(message, duration) self:Notify("Error", message, duration or 3.4, "error") end
 
+-- ================================================================
+-- Window
+-- ================================================================
+
 function Library:CreateWindow(titleText, accentColor)
     local windowMaid = Maid()
     local oldWindows = {}
@@ -425,7 +431,7 @@ function Library:CreateWindow(titleText, accentColor)
     ScreenGui.ResetOnSpawn = false
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.DisplayOrder = 300
+    ScreenGui.DisplayOrder = 100
     ScreenGui.Parent = guiParent
     windowMaid:Add(ScreenGui)
 
@@ -446,21 +452,11 @@ function Library:CreateWindow(titleText, accentColor)
     Main.BackgroundColor3 = Library.Theme.Surface
     Main.BackgroundTransparency = 0
     Main.BorderSizePixel = 0
-    Main.ClipsDescendants = false
+    Main.ClipsDescendants = true
     Main.Active = true
     Main.ZIndex = 10
     Main.Parent = ScreenGui
     local MainCorner = addCorner(Main, Library.Config.BubbleRadius)
-
-    local MainClip = Instance.new("Frame")
-    MainClip.Name = "MainClip"
-    MainClip.Size = UDim2.fromScale(1, 1)
-    MainClip.BackgroundTransparency = 1
-    MainClip.ClipsDescendants = true
-    MainClip.ZIndex = 11
-    MainClip.Parent = Main
-    local MainClipCorner = addCorner(MainClip, Library.Config.BubbleRadius)
-
     local MainStroke = addStroke(Main, Library.Theme.Border, 0.3)
 
     local MainGradient = Instance.new("UIGradient")
@@ -474,8 +470,7 @@ function Library:CreateWindow(titleText, accentColor)
     local Bubble = Instance.new("Frame")
     Bubble.Size = UDim2.fromScale(1, 1)
     Bubble.BackgroundTransparency = 1
-    Bubble.ZIndex = 12
-    Bubble.Parent = MainClip
+    Bubble.Parent = Main
     local bubbleLayout = Instance.new("UIListLayout")
     bubbleLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     bubbleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -491,15 +486,14 @@ function Library:CreateWindow(titleText, accentColor)
     BubbleButton.AutoButtonColor = false
     BubbleButton.Active = true
     BubbleButton.ZIndex = 70
-    BubbleButton.Parent = MainClip
+    BubbleButton.Parent = Main
 
     local Content = Instance.new("Frame")
     Content.Size = UDim2.fromScale(1, 1)
     Content.BackgroundTransparency = 1
     Content.ClipsDescendants = true
     Content.Visible = false
-    Content.ZIndex = 12
-    Content.Parent = MainClip
+    Content.Parent = Main
 
     local isOpen = false
     local closing = false
@@ -548,7 +542,6 @@ function Library:CreateWindow(titleText, accentColor)
 
     local refreshTabRail
     local updateLayoutMetrics
-    local updateIndicatorPosition
 
     local function fitToViewport()
         if not Main.Parent then return end
@@ -596,7 +589,6 @@ function Library:CreateWindow(titleText, accentColor)
     Header.BackgroundTransparency = 1
     Header.BorderSizePixel = 0
     Header.ClipsDescendants = true
-    Header.ZIndex = 12
     Header.Parent = Content
     local headerLine = Instance.new("Frame")
     headerLine.Position = UDim2.new(0, 16, 1, -1)
@@ -656,8 +648,7 @@ function Library:CreateWindow(titleText, accentColor)
     Sidebar.BackgroundColor3 = Library.Theme.Background
     Sidebar.BackgroundTransparency = 0
     Sidebar.BorderSizePixel = 0
-    Sidebar.ClipsDescendants = false
-    Sidebar.ZIndex = 12
+    Sidebar.ClipsDescendants = true
     Sidebar.Parent = Content
     local sidebarLine = Instance.new("Frame")
     sidebarLine.Position = UDim2.new(1, -1, 0, 14)
@@ -677,7 +668,7 @@ function Library:CreateWindow(titleText, accentColor)
     TabsScroll.ClipsDescendants = true
     TabsScroll.Parent = Sidebar
     local tabsLayout = Instance.new("UIListLayout")
-    tabsLayout.Padding = UDim.new(0, 4)
+    tabsLayout.Padding = UDim.new(0, 3)
     tabsLayout.Parent = TabsScroll
     tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         if refreshTabRail then
@@ -686,26 +677,6 @@ function Library:CreateWindow(titleText, accentColor)
             end)
         end
     end)
-
-    local IndicatorLayer = Instance.new("Frame")
-    IndicatorLayer.Name = "IndicatorLayer"
-    IndicatorLayer.Position = TabsScroll.Position
-    IndicatorLayer.Size = TabsScroll.Size
-    IndicatorLayer.BackgroundTransparency = 1
-    IndicatorLayer.ClipsDescendants = true
-    IndicatorLayer.ZIndex = 18
-    IndicatorLayer.Parent = Sidebar
-
-    local TabIndicator = Instance.new("Frame")
-    TabIndicator.Name = "TabIndicator"
-    TabIndicator.Size = UDim2.fromOffset(3, 20)
-    TabIndicator.Position = UDim2.fromOffset(0, 0)
-    TabIndicator.BackgroundColor3 = accent
-    TabIndicator.BorderSizePixel = 0
-    TabIndicator.Visible = false
-    TabIndicator.ZIndex = 19
-    TabIndicator.Parent = IndicatorLayer
-    addCorner(TabIndicator, 2)
 
     local Status = Instance.new("Frame")
     Status.Position = UDim2.new(0, 8, 1, -52)
@@ -736,44 +707,7 @@ function Library:CreateWindow(titleText, accentColor)
     Body.Size = UDim2.new(1, -140, 1, -56)
     Body.BackgroundTransparency = 1
     Body.ClipsDescendants = true
-    Body.ZIndex = 12
     Body.Parent = Content
-
-    updateIndicatorPosition = function(animate)
-        if not CurrentPage or not CurrentPage.button or not CurrentPage.button.Parent then
-            TabIndicator.Visible = false
-            return
-        end
-        local targetBtn = CurrentPage.button
-        local btnAbsPos = targetBtn.AbsolutePosition
-        local btnAbsSize = targetBtn.AbsoluteSize
-        local layerAbsPos = IndicatorLayer.AbsolutePosition
-
-        local relX = btnAbsPos.X - layerAbsPos.X
-        local relY = btnAbsPos.Y - layerAbsPos.Y
-
-        local compact = isMobile()
-        local targetPos, targetSize
-        if compact then
-            targetPos = UDim2.fromOffset(relX, relY + btnAbsSize.Y - 2)
-            targetSize = UDim2.fromOffset(btnAbsSize.X, 2)
-        else
-            targetPos = UDim2.fromOffset(0, relY + (btnAbsSize.Y - 20) / 2)
-            targetSize = UDim2.fromOffset(3, 20)
-        end
-
-        TabIndicator.Visible = true
-
-        if animate then
-            tween(TabIndicator, Library.Config.TabIndicatorDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                Position = targetPos,
-                Size = targetSize,
-            })
-        else
-            TabIndicator.Position = targetPos
-            TabIndicator.Size = targetSize
-        end
-    end
 
     refreshTabRail = function(compact)
         tabsLayout.FillDirection = compact and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical
@@ -782,37 +716,31 @@ function Library:CreateWindow(titleText, accentColor)
         for i, record in ipairs(TabButtons) do
             local b = record.button
             if compact then
-                b.Size = UDim2.fromOffset(104, 34)
-                record.label.Position = UDim2.new(0, 10, 0, 0)
-                record.label.Size = UDim2.new(1, -18, 1, 0)
-                record.label.TextSize = 10
-                record.tabIndex.Visible = false
+                b.Size = UDim2.fromOffset(108, 36)
+                record.marker.Position = UDim2.new(0, 10, 1, -3)
+                record.marker.Size = UDim2.new(0, 22, 0, 2)
+                record.tabIndex.Position = UDim2.new(0, 10, 0, 3)
+                record.tabIndex.Size = UDim2.new(0, 18, 0, 11)
+                record.tabIndex.TextSize = 7
+                record.label.Position = UDim2.new(0, 10, 0, 14)
+                record.label.Size = UDim2.new(1, -18, 0, 18)
             else
                 b.Size = UDim2.new(1, 0, 0, 40)
-                record.label.Position = UDim2.new(0, 16, 0, 0)
-                record.label.Size = UDim2.new(1, -24, 1, 0)
-                record.label.TextSize = 10
-                record.tabIndex.Visible = true
-                record.tabIndex.Position = UDim2.new(0, 10, 0, 0)
+                record.marker.Position = UDim2.new(0, 0, 0.5, -8)
+                record.marker.Size = UDim2.new(0, 3, 0, 16)
+                record.tabIndex.Position = UDim2.new(0, 12, 0, 0)
                 record.tabIndex.Size = UDim2.new(0, 18, 1, 0)
+                record.tabIndex.TextSize = 8
+                record.label.Position = UDim2.new(0, 34, 0, 0)
+                record.label.Size = UDim2.new(1, -42, 1, 0)
             end
         end
-
-        IndicatorLayer.Position = TabsScroll.Position
-        IndicatorLayer.Size = TabsScroll.Size
-
         if compact then
             local x = tabsLayout.AbsoluteContentSize.X + 10
             TabsScroll.CanvasSize = UDim2.new(0, x, 0, 0)
         else
             local y = tabsLayout.AbsoluteContentSize.Y + 10
             TabsScroll.CanvasSize = UDim2.new(0, 0, 0, y)
-        end
-
-        if CurrentPage and CurrentPage.button and CurrentPage.button.Parent then
-            task.defer(function()
-                updateIndicatorPosition(false)
-            end)
         end
     end
 
@@ -851,86 +779,35 @@ function Library:CreateWindow(titleText, accentColor)
     end
     updateLayoutMetrics()
 
-    TabsScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-        if CurrentPage then
-            updateIndicatorPosition(false)
-        end
-    end)
-
     local function selectTab(record)
-        if not record or not record.page then return end
-        if CurrentPage == record then
-            record.page.Visible = true
-            record.page.Position = UDim2.fromOffset(0, 0)
-            return
-        end
-
-        local previous = CurrentPage
-        local direction = 1
-        if previous then
-            local previousIndex = table.find(TabButtons, previous) or 1
-            local nextIndex = table.find(TabButtons, record) or previousIndex
-            direction = nextIndex >= previousIndex and 1 or -1
-        end
-
         for _, item in ipairs(TabButtons) do
             local active = item == record
-            tween(item.button, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            tween(item.button, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
                 BackgroundTransparency = active and 0 or 1,
-                BackgroundColor3 = active and Library.Theme.AccentSoft or Library.Theme.Surface2,
             })
-            tween(item.label, 0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            tween(item.label, 0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
                 TextColor3 = active and Library.Theme.Text or Library.Theme.Text2,
             })
             if item.tabIndex then
-                tween(item.tabIndex, 0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                tween(item.tabIndex, 0.17, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
                     TextColor3 = active and accent or Library.Theme.Muted,
                 })
             end
-        end
-
-        task.defer(function()
-            updateIndicatorPosition(true)
-        end)
-
-        if previous then
-            local oldPage = previous.page
-            local newPage = record.page
-
-            local offset = Library.Config.TabSlideOffset * direction
-            newPage.Position = UDim2.fromOffset(offset, 0)
-            newPage.Visible = true
-
-            tween(oldPage, Library.Config.TabSwitchDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                Position = UDim2.fromOffset(-offset, 0),
+            local compact = isMobile()
+            spring(item.marker, 0.24, {
+                BackgroundTransparency = active and 0 or 1,
+                Size = compact
+                    and (active and UDim2.new(0, 26, 0, 2) or UDim2.new(0, 12, 0, 2))
+                    or (active and UDim2.new(0, 3, 0, 20) or UDim2.new(0, 3, 0, 14)),
             })
-
-            tween(newPage, Library.Config.TabSwitchDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                Position = UDim2.fromOffset(0, 0),
-            })
-
-            task.delay(Library.Config.TabSwitchDuration, function()
-                if oldPage.Parent then
-                    oldPage.Visible = false
-                    oldPage.Position = UDim2.new(0, 0, 0, 0)
-                end
-            end)
-        else
-            local newPage = record.page
-            newPage.Visible = true
-            newPage.Position = UDim2.new(0, 0, 0, 0)
+            item.page.Visible = active
+            if item.scrollRail then
+                item.scrollRail.Visible = active
+                task.defer(function()
+                    if item.updateScrollIndicator then item.updateScrollIndicator() end
+                end)
+            end
         end
-
-        if record.scrollRail then
-            record.scrollRail.Visible = true
-            task.defer(function()
-                if record.updateScrollIndicator then record.updateScrollIndicator() end
-            end)
-        end
-        if previous and previous.scrollRail then
-            previous.scrollRail.Visible = false
-        end
-
         CurrentPage = record
     end
 
@@ -1306,9 +1183,8 @@ function Library:CreateWindow(titleText, accentColor)
             optionsFrame.Size = UDim2.new(1, -40, 0, 0)
             optionsFrame.BackgroundTransparency = 1
             optionsFrame.BorderSizePixel = 0
-            optionsFrame.ScrollBarThickness = 0
+            optionsFrame.ScrollBarThickness = 2
             optionsFrame.ScrollBarImageColor3 = accent
-            optionsFrame.ZIndex = 50
             optionsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
             optionsFrame.ClipsDescendants = true
             optionsFrame.Parent = card
@@ -1346,9 +1222,6 @@ function Library:CreateWindow(titleText, accentColor)
                     b.TextSize = 10
                     b.TextXAlignment = Enum.TextXAlignment.Left
                     b.AutoButtonColor = false
-                    b.Active = true
-                    b.Selectable = false
-                    b.ZIndex = 51
                     font(b, Enum.FontWeight.Medium)
                     b.Parent = optionsFrame
                     addCorner(b, 4)
@@ -1469,9 +1342,6 @@ function Library:CreateWindow(titleText, accentColor)
                     row.BorderSizePixel = 0
                     row.Text = ""
                     row.AutoButtonColor = false
-                    row.Active = true
-                    row.Selectable = false
-                    row.ZIndex = 51
                     row.Parent = optionsFrame
                     addCorner(row, 4)
 
@@ -1504,7 +1374,7 @@ function Library:CreateWindow(titleText, accentColor)
                     row.Activated:Connect(function()
                         selected[key] = not selected[key]
                         updateSummary()
-                        rebuild()
+                        task.defer(rebuild)
                         safeCall(callback, getValues())
                     end)
                 end
@@ -1612,7 +1482,7 @@ function Library:CreateWindow(titleText, accentColor)
             local h, s, v = Color3.toHSV(current)
             local alphaValue = 0
 
-            local card, brackets, edge = makeCard(page, 226)
+            local card, brackets, edge = makeCard(page, 220)
             cardHover(card, brackets, edge)
 
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
@@ -1708,7 +1578,6 @@ function Library:CreateWindow(titleText, accentColor)
             checker.Size = UDim2.fromScale(1, 1)
             checker.BackgroundColor3 = Library.Theme.Surface3
             checker.BorderSizePixel = 0
-            checker.ZIndex = 1
             checker.Parent = alphaBar
 
             local checkerGrad = Instance.new("UIGradient")
@@ -1725,7 +1594,6 @@ function Library:CreateWindow(titleText, accentColor)
             alphaOverlay.BackgroundColor3 = current
             alphaOverlay.BackgroundTransparency = 0
             alphaOverlay.BorderSizePixel = 0
-            alphaOverlay.ZIndex = 2
             alphaOverlay.Parent = alphaBar
 
             local alphaGrad = Instance.new("UIGradient")
@@ -1742,7 +1610,6 @@ function Library:CreateWindow(titleText, accentColor)
             alphaCursor.BackgroundColor3 = Color3.new(1, 1, 1)
             alphaCursor.BorderSizePixel = 0
             alphaCursor.ZIndex = 8
-            alphaCursor.ZIndex = 4
             alphaCursor.Parent = alphaBar
             addStroke(alphaCursor, Library.Theme.Text, 0.3, 2)
             addCorner(alphaCursor, 3)
@@ -2002,7 +1869,6 @@ function Library:CreateWindow(titleText, accentColor)
         page.ElasticBehavior = Enum.ElasticBehavior.Never
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.Visible = false
-        page.Position = UDim2.new(0, 0, 0, 0)
         page.Parent = Body
 
         local scrollRail = Instance.new("Frame")
@@ -2068,22 +1934,28 @@ function Library:CreateWindow(titleText, accentColor)
         button.BackgroundTransparency = 1
         button.Text = ""
         button.AutoButtonColor = false
-        button.ZIndex = 25
-        button.Active = true
-        button.Selectable = false
         button.Parent = TabsScroll
-        addCorner(button, 8)
+        addCorner(button, 6)
+        local marker = Instance.new("Frame")
+        marker.Size = UDim2.new(0, 3, 0, 14)
+        marker.Position = UDim2.new(0, 0, 0.5, -7)
+        marker.BackgroundColor3 = accent
+        marker.BackgroundTransparency = 1
+        marker.BorderSizePixel = 0
+        marker.Parent = button
+        addCorner(marker, 1)
         local tabIndex = createLabel(button, string.format("%02d", #TabButtons + 1), 8, Library.Theme.Muted, Enum.FontWeight.Bold)
-        tabIndex.Position = UDim2.new(0, 10, 0, 0)
+        tabIndex.Position = UDim2.new(0, 12, 0, 0)
         tabIndex.Size = UDim2.new(0, 18, 1, 0)
         local label = createLabel(button, tabName, 10, Library.Theme.Text2, Enum.FontWeight.SemiBold)
-        label.Position = UDim2.new(0, 16, 0, 0)
-        label.Size = UDim2.new(1, -24, 1, 0)
+        label.Position = UDim2.new(0, 34, 0, 0)
+        label.Size = UDim2.new(1, -42, 1, 0)
 
         local record = {
             name = tabName,
             page = page,
             button = button,
+            marker = marker,
             label = label,
             tabIndex = tabIndex,
             scrollRail = scrollRail,
@@ -2106,6 +1978,11 @@ function Library:CreateWindow(titleText, accentColor)
         return originalCreateTab(final)
     end
 
+    -- ============================================================
+    -- Morph animation: 气泡 <-> 窗口
+    -- 中心锚点让缩放看起来自然从中心展开
+    -- ============================================================
+
     local function openWindow()
         if closing or transitioning or isOpen then return end
         isOpen = true
@@ -2123,7 +2000,6 @@ function Library:CreateWindow(titleText, accentColor)
         tween(Dimmer, 0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = Library.Theme.DimTransparency })
         tween(MainStroke, 0.32, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = accent, Transparency = 0.7 })
         spring(MainCorner, 0.36, { CornerRadius = UDim.new(0, Library.Config.WindowRadius) })
-        spring(MainClipCorner, 0.36, { CornerRadius = UDim.new(0, Library.Config.WindowRadius) })
 
         Main.Size = UDim2.fromOffset(startSize, startSize)
         Main.Position = startPos
@@ -2159,7 +2035,6 @@ function Library:CreateWindow(titleText, accentColor)
         task.delay(0.22, function() if Dimmer.Parent and not isOpen then Dimmer.Visible = false end end)
         tween(MainStroke, 0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = Library.Theme.Border, Transparency = 0.3 })
         spring(MainCorner, 0.32, { CornerRadius = UDim.new(0, Library.Config.BubbleRadius) })
-        spring(MainClipCorner, 0.32, { CornerRadius = UDim.new(0, Library.Config.BubbleRadius) })
 
         local t = tween(Main, Library.Config.CloseDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut, {
             Size = UDim2.fromOffset(fs, fs),
@@ -2185,6 +2060,7 @@ function Library:CreateWindow(titleText, accentColor)
         closing = true
         transitioning = true
         Dimmer.BackgroundTransparency = 1
+        local startPos = Main.Position
         local vp = viewport()
         tween(MainStroke, 0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.In, { Transparency = 1, Color = accent })
         local t = tween(Main, 0.32, Enum.EasingStyle.Back, Enum.EasingDirection.In, {
@@ -2193,14 +2069,12 @@ function Library:CreateWindow(titleText, accentColor)
             BackgroundTransparency = 1,
             Rotation = 32,
         })
-        if t then
-            t.Completed:Connect(function()
-                if not windowMaid.dead then windowMaid:Destroy() end
-            end)
-        else
-            windowMaid:Destroy()
-        end
+        if t then t.Completed:Connect(function() windowMaid:Destroy() end) else windowMaid:Destroy() end
     end)
+
+    -- ============================================================
+    -- Bubble drag / tap
+    -- ============================================================
 
     local dragOwner = {}
     local clickStart
@@ -2246,6 +2120,10 @@ function Library:CreateWindow(titleText, accentColor)
             clickStart, dragStart = nil, nil
         end
     end)
+
+    -- ============================================================
+    -- Window header drag (anchored)
+    -- ============================================================
 
     local DragHandle = hitZone(Header)
     DragHandle.Name = "DragHandle"
@@ -2310,8 +2188,8 @@ function Library:CreateWindow(titleText, accentColor)
         accent = color
         Library.Theme.Accent = color
         statusLabel.TextColor3 = color
-        TabIndicator.BackgroundColor3 = color
         for _, item in ipairs(TabButtons) do
+            if item.marker then item.marker.BackgroundColor3 = color end
             if item.tabIndex then
                 item.tabIndex.TextColor3 = item == CurrentPage and color or Library.Theme.Muted
             end
@@ -2322,12 +2200,6 @@ function Library:CreateWindow(titleText, accentColor)
             end
         end
     end
-
-    task.defer(function()
-        if not closing and ScreenGui.Parent then
-            openWindow()
-        end
-    end)
 
     return Window
 end
@@ -2356,7 +2228,7 @@ function Library:SetCustomFont(fontAssetId)
 end
 
 Library.Compatibility = {
-    Version = "16.x",
+    Version = "14.x",
     PreservesV4API = true,
     MobileFirst = true,
 }
