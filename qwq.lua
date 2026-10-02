@@ -13,7 +13,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "2.0.0"
+Library.Version = "3.0.0"
 Library.Theme = {
     Accent = Color3.fromRGB(224, 116, 148),
     AccentSoft = Color3.fromRGB(247, 220, 229),
@@ -403,16 +403,30 @@ function Library:CreateWindow(titleText, accentColor)
     end
 
     local function updateResponsive()
-        if not Main.Parent or isOpen then return end
+        if not Main.Parent then return end
         local mobile = isMobile()
-        if mobile then
-            Main.Size = UDim2.new(0, 52, 0, 52)
-        else
-            Main.Size = UDim2.new(0, 56, 0, 56)
+        if not isOpen then
+            Main.Size = UDim2.new(0, mobile and 52 or 56, 0, mobile and 52 or 56)
+            return
         end
+        local camera = workspace.CurrentCamera
+        local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+        local compact = vp.X < Library.Config.MobileBreakpoint
+        Sidebar.Size = UDim2.new(0, compact and 92 or 126, 1, -50)
+        Body.Position = UDim2.new(0, compact and 92 or 126, 0, 50)
+        Body.Size = UDim2.new(1, -(compact and 92 or 126), 1, -50)
+        TabsScroll.Size = UDim2.new(1, -16, 1, -70)
     end
-    local cameraConn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() task.defer(updateResponsive) end)
+    local cameraConn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        task.defer(updateResponsive)
+    end)
     windowMaid:Add(cameraConn)
+    task.defer(function()
+        local camera = workspace.CurrentCamera
+        if camera then
+            windowMaid:Add(camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsive))
+        end
+    end)
     updateResponsive()
 
     local function windowSize()
@@ -990,8 +1004,15 @@ function Library:CreateWindow(titleText, accentColor)
         return API
     end
 
-    function Library:CreateTab(tabName)
+    local function createTab(tabName)
         tabName = tostring(tabName or "Tab")
+        if tabName == "" then tabName = "Tab" end
+        for _, existing in ipairs(TabButtons) do
+            if existing.name == tabName then
+                tabName = tabName .. " " .. tostring(#TabButtons + 1)
+                break
+            end
+        end
         local page = Instance.new("ScrollingFrame")
         page.Name = tabName .. "Page"
         page.Size = UDim2.fromScale(1, 1)
@@ -1032,7 +1053,7 @@ function Library:CreateWindow(titleText, accentColor)
         label.Position = UDim2.new(0, 12, 0, 0)
         label.Size = UDim2.new(1, -12, 1, 0)
 
-        local record = {page = page, button = button, marker = marker, label = label}
+        local record = {name = tabName, page = page, button = button, marker = marker, label = label}
         table.insert(TabButtons, record)
         button.Activated:Connect(function() selectTab(record) end)
         if not CurrentPage then selectTab(record) end
@@ -1074,6 +1095,12 @@ function Library:CreateWindow(titleText, accentColor)
         Main.BackgroundTransparency = 0.05
         MainStroke.Transparency = 0.5
         local size = windowSize()
+        local camera = workspace.CurrentCamera
+        local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+        local compact = vp.X < Library.Config.MobileBreakpoint
+        Sidebar.Size = UDim2.new(0, compact and 92 or 126, 1, -50)
+        Body.Position = UDim2.new(0, compact and 92 or 126, 0, 50)
+        Body.Size = UDim2.new(1, -(compact and 92 or 126), 1, -50)
         tween(Dimmer, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = Library.Theme.DimTransparency})
         tween(MainCorner, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {CornerRadius = UDim.new(0, 14)})
         local t = tween(Main, 0.32, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, {Size = size, Position = UDim2.fromScale(0.5, 0.5)})
@@ -1112,7 +1139,7 @@ function Library:CreateWindow(titleText, accentColor)
     local headerDragOwner = {}
     Header.InputBegan:Connect(function(input)
         if not isOpen or closing then return end
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)  then
             local startInput = input.Position
             local startPos = Main.Position
             beginPointer(headerDragOwner, function(moveInput)
@@ -1137,11 +1164,38 @@ function Library:CreateWindow(titleText, accentColor)
 
     -- Initial demo state: minimized floating control. Public methods expose deterministic state.
     local Window = {}
+    function Window:CreateTab(tabName)
+        return createTab(tabName)
+    end
+
+    function Window:SelectTab(name)
+        local target = tostring(name or "")
+        for _, item in ipairs(TabButtons) do
+            if item.name == target then
+                selectTab(item)
+                return true
+            end
+        end
+        return false
+    end
+
+    function Window:GetTabs()
+        local result = {}
+        for _, item in ipairs(TabButtons) do table.insert(result, item.name) end
+        return result
+    end
+
     function Window:SetVisible(value)
         if value then openWindow() elseif isOpen then minimizeButton:Activate() end
     end
     function Window:IsOpen() return isOpen end
-    function Window:Destroy() if not closing then closing = true end windowMaid:Destroy() end
+    function Window:Destroy()
+        if Pointer.owner == dragOwner or Pointer.owner == headerDragOwner then
+            Pointer.owner, Pointer.move, Pointer.ended = nil, nil, nil
+        end
+        closing = true
+        windowMaid:Destroy()
+    end
     function Window:GetScreenGui() return ScreenGui end
     function Window:SetStatus(text) statusLabel.Text = tostring(text) end
     function Window:SetAccent(color)
