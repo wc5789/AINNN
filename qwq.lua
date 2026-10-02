@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "13.0.0"
+Library.Version = "13.1.0"
 
 Library.Theme = {
     Accent = Color3.fromRGB(96, 118, 148),
@@ -281,19 +281,20 @@ local function ensureNotifications()
     NotificationGui.ResetOnSpawn = false
     NotificationGui.IgnoreGuiInset = true
     NotificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    NotificationGui.DisplayOrder = 999
     NotificationGui.Parent = parentGui()
     NotificationMaid:Add(NotificationGui)
 
     NotificationList = Instance.new("Frame")
     NotificationList.AnchorPoint = Vector2.new(1, 1)
-    NotificationList.Position = UDim2.new(1, -12, 1, -12)
+    NotificationList.Position = UDim2.new(1, -14, 1, -14)
     NotificationList.BackgroundTransparency = 1
     NotificationList.Parent = NotificationGui
 
     local function fitList()
         local camera = workspace.CurrentCamera
         local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
-        NotificationList.Size = UDim2.new(0, math.min(300, math.max(180, vp.X - 24)), 0, math.min(420, vp.Y - 24))
+        NotificationList.Size = UDim2.new(0, math.min(260, math.max(160, vp.X - 28)), 0, math.min(360, vp.Y - 28))
     end
     fitList()
     local camera = workspace.CurrentCamera
@@ -302,7 +303,7 @@ local function ensureNotifications()
     end
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 7)
+    layout.Padding = UDim.new(0, 6)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
     layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
     layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -317,39 +318,46 @@ local function makeNotification(title, message, duration, kind)
     local accentColor = colors[kind] or colors.info
 
     local toast = Instance.new("Frame")
-    toast.Size = UDim2.new(1, 0, 0, 56)
+    toast.Size = UDim2.new(1, 0, 0, 36)
     toast.BackgroundColor3 = Library.Theme.Surface
     toast.BackgroundTransparency = 1
     toast.BorderSizePixel = 0
     toast.ClipsDescendants = true
     toast.LayoutOrder = notificationCounter
     toast.Parent = list
-    addCorner(toast, 2)
-    local stroke = addStroke(toast, Library.Theme.Border, 1)
+    addCorner(toast, 3)
+    local stroke = addStroke(toast, accentColor, 1, 1)
 
     local rail = Instance.new("Frame")
-    rail.Size = UDim2.new(0, 2, 1, -12)
-    rail.Position = UDim2.new(0, 8, 0, 6)
+    rail.Size = UDim2.new(0, 3, 1, 0)
+    rail.Position = UDim2.new(0, 0, 0, 0)
     rail.BackgroundColor3 = accentColor
     rail.BorderSizePixel = 0
     rail.Parent = toast
 
-    local prefix = createLabel(toast, ">", 10, accentColor, Enum.FontWeight.Bold)
-    prefix.Position = UDim2.new(0, 18, 0, 7)
-    prefix.Size = UDim2.new(0, 12, 0, 12)
-    local titleLabel = createLabel(toast, tostring(title):upper(), 10, Library.Theme.Text, Enum.FontWeight.Bold)
-    titleLabel.Position = UDim2.new(0, 34, 0, 6)
-    titleLabel.Size = UDim2.new(1, -46, 0, 14)
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.new(0, 6, 0, 6)
+    dot.Position = UDim2.new(0, 14, 0.5, -3)
+    dot.BackgroundColor3 = accentColor
+    dot.BorderSizePixel = 0
+    dot.Parent = toast
+    addCorner(dot, 3)
+
+    local titleLabel = createLabel(toast, tostring(title):upper(), 9, Library.Theme.Text, Enum.FontWeight.Bold)
+    titleLabel.Position = UDim2.new(0, 26, 0, 4)
+    titleLabel.Size = UDim2.new(1, -36, 0, 12)
+    titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
     local descLabel = createLabel(toast, tostring(message), 9, Library.Theme.Text2, Enum.FontWeight.Medium)
-    descLabel.Position = UDim2.new(0, 18, 0, 22)
-    descLabel.Size = UDim2.new(1, -30, 0, 26)
-    descLabel.TextWrapped = true
-    descLabel.TextYAlignment = Enum.TextYAlignment.Top
+    descLabel.Position = UDim2.new(0, 26, 0, 17)
+    descLabel.Size = UDim2.new(1, -36, 0, 14)
+    descLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
     local rule = Instance.new("Frame")
-    rule.Position = UDim2.new(0, 18, 1, -4)
-    rule.Size = UDim2.new(1, -30, 0, 1)
+    rule.Position = UDim2.new(0, 12, 1, -2)
+    rule.Size = UDim2.new(1, -24, 0, 1)
     rule.BackgroundColor3 = Library.Theme.BorderSoft
+    rule.BackgroundTransparency = 0.4
     rule.BorderSizePixel = 0
     rule.Parent = toast
     local fill = Instance.new("Frame")
@@ -358,15 +366,16 @@ local function makeNotification(title, message, duration, kind)
     fill.BorderSizePixel = 0
     fill.Parent = rule
 
-    toast.Size = UDim2.new(1, 0, 0, 0)
-    spring(toast, 0.32, { Size = UDim2.new(1, 0, 0, 56), BackgroundTransparency = 0 })
-    tween(stroke, 0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Transparency = 0.45 })
+    toast.Position = UDim2.new(0, 20, 0, 0)
+    toast.BackgroundTransparency = 1
+    spring(toast, 0.30, { Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0 })
+    tween(stroke, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Transparency = 0.55 })
     tween(fill, math.max(0.1, duration or 3), Enum.EasingStyle.Linear, Enum.EasingDirection.Out, { Size = UDim2.new(1, 0, 1, 0) })
 
     task.delay(duration or 3, function()
         if not toast.Parent then return end
         tween(stroke, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In, { Transparency = 1 })
-        local out = spring(toast, 0.26, { Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1 }, Enum.EasingDirection.In)
+        local out = spring(toast, 0.24, { Position = UDim2.new(0, 24, 0, 0), BackgroundTransparency = 1 }, Enum.EasingDirection.In)
         if out then out.Completed:Connect(function() if toast.Parent then toast:Destroy() end end) end
     end)
 end
@@ -420,7 +429,7 @@ function Library:CreateWindow(titleText, accentColor)
     Main.Active = true
     Main.ZIndex = 10
     Main.Parent = ScreenGui
-    local MainCorner = addCorner(Main, 4)
+    local MainCorner = addCorner(Main, 14)
     local MainStroke = addStroke(Main, Library.Theme.Border, 0.3)
 
     local MainGradient = Instance.new("UIGradient")
@@ -443,7 +452,8 @@ function Library:CreateWindow(titleText, accentColor)
     bubbleLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     bubbleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     bubbleLayout.Parent = Bubble
-    local bubbleLogo = logoMark(Bubble, 24, accent)
+    local bubbleLogo = logoMark(Bubble, 22, accent)
+
     local BubbleButton = Instance.new("TextButton")
     BubbleButton.Name = "BubbleButton"
     BubbleButton.Size = UDim2.fromScale(1, 1)
@@ -477,7 +487,7 @@ function Library:CreateWindow(titleText, accentColor)
     end
 
     local function floatingSize()
-        return isMobile() and 52 or 56
+        return isMobile() and 50 or 54
     end
 
     local function clampFloating(pos, size)
@@ -597,10 +607,10 @@ function Library:CreateWindow(titleText, accentColor)
         addCorner(b, 2)
         addStroke(b, Library.Theme.Border, 0.55)
         b.MouseEnter:Connect(function()
-            tween(b, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = accent })
+            tween(b, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = accent, BackgroundColor3 = Library.Theme.AccentSoft })
         end)
         b.MouseLeave:Connect(function()
-            tween(b, 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = Library.Theme.Text2 })
+            tween(b, 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = Library.Theme.Text2, BackgroundColor3 = Library.Theme.Surface3 })
         end)
         b.Activated:Connect(callback)
         return b
@@ -1242,7 +1252,7 @@ function Library:CreateWindow(titleText, accentColor)
             options = options or {}
             local selected = {}
             local open = false
-            local optionHeight, headerHeight, maxVisible = 30, 44, 6
+            local optionHeight, headerHeight, maxVisible = 28, 44, 6
             local card, brackets, edge = makeCard(page, headerHeight)
             card.ClipsDescendants = true
             local click = hitZone(card)
@@ -1250,15 +1260,15 @@ function Library:CreateWindow(titleText, accentColor)
 
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
             label.Position = UDim2.new(0, 20, 0, 0)
-            label.Size = UDim2.new(1, -150, 0, headerHeight)
+            label.Size = UDim2.new(1, -140, 0, headerHeight)
 
             local valueLabel = createLabel(card, "0 SELECTED", 8, Library.Theme.Muted, Enum.FontWeight.Bold)
-            valueLabel.Position = UDim2.new(1, -118, 0, 7)
-            valueLabel.Size = UDim2.new(0, 82, 0, 11)
+            valueLabel.Position = UDim2.new(1, -114, 0, 0)
+            valueLabel.Size = UDim2.new(0, 78, 0, headerHeight)
             valueLabel.TextXAlignment = Enum.TextXAlignment.Right
 
             local arrow = createLabel(card, "+", 14, Library.Theme.Text2, Enum.FontWeight.Bold)
-            arrow.Position = UDim2.new(1, -34, 0, 0)
+            arrow.Position = UDim2.new(1, -32, 0, 0)
             arrow.Size = UDim2.new(0, 20, 0, headerHeight)
             arrow.TextXAlignment = Enum.TextXAlignment.Center
 
@@ -1284,14 +1294,6 @@ function Library:CreateWindow(titleText, accentColor)
             list.Padding = UDim.new(0, 3)
             list.Parent = optionsFrame
 
-            local function countSelected()
-                local count = 0
-                for _, option in ipairs(options) do
-                    if selected[tostring(option)] then count += 1 end
-                end
-                return count
-            end
-
             local function getValues()
                 local values = {}
                 for _, option in ipairs(options) do
@@ -1301,7 +1303,7 @@ function Library:CreateWindow(titleText, accentColor)
             end
 
             local function updateSummary()
-                local count = countSelected()
+                local count = #getValues()
                 valueLabel.Text = string.format("%d SELECTED", count)
                 valueLabel.TextColor3 = count > 0 and accent or Library.Theme.Muted
             end
@@ -1315,7 +1317,7 @@ function Library:CreateWindow(titleText, accentColor)
             local function renderOpen(value)
                 open = value
                 local h = open and headerHeight + bodyHeight() or headerHeight
-                spring(card, 0.24, { Size = UDim2.new(1, 0, 0, h) })
+                spring(card, 0.26, { Size = UDim2.new(1, 0, 0, h) })
                 tween(arrow, 0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, { Rotation = open and 45 or 0, TextColor3 = open and accent or Library.Theme.Text2 })
                 tween(line, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = open and accent or Library.Theme.BorderSoft })
             end
@@ -1329,43 +1331,46 @@ function Library:CreateWindow(titleText, accentColor)
 
                 for index, option in ipairs(options) do
                     local key = tostring(option)
+                    local isSelected = selected[key] == true
                     local row = Instance.new("TextButton")
                     row.Size = UDim2.new(1, 0, 0, optionHeight)
-                    row.BackgroundColor3 = selected[key] and Library.Theme.AccentSoft or Library.Theme.Surface3
-                    row.BackgroundTransparency = selected[key] and 0 or 0
+                    row.BackgroundColor3 = isSelected and Library.Theme.AccentSoft or Library.Theme.Surface3
                     row.BorderSizePixel = 0
                     row.Text = ""
                     row.AutoButtonColor = false
                     row.Parent = optionsFrame
                     addCorner(row, 3)
 
-                    local number = createLabel(row, string.format("%02d", index), 8, selected[key] and accent or Library.Theme.Muted, Enum.FontWeight.Bold)
+                    local number = createLabel(row, string.format("%02d", index), 8, isSelected and accent or Library.Theme.Muted, Enum.FontWeight.Bold)
                     number.Position = UDim2.new(0, 10, 0, 0)
                     number.Size = UDim2.new(0, 22, 1, 0)
 
-                    local nameLabel = createLabel(row, key, 10, selected[key] and Library.Theme.Text or Library.Theme.Text2, Enum.FontWeight.SemiBold)
+                    local nameLabel = createLabel(row, key, 10, isSelected and Library.Theme.Text or Library.Theme.Text2, Enum.FontWeight.SemiBold)
                     nameLabel.Position = UDim2.new(0, 38, 0, 0)
                     nameLabel.Size = UDim2.new(1, -78, 1, 0)
+                    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-                    local state = createLabel(row, selected[key] and "✓" or "○", 12, selected[key] and accent or Library.Theme.Muted, Enum.FontWeight.Bold)
-                    state.Position = UDim2.new(1, -32, 0, 0)
-                    state.Size = UDim2.new(0, 22, 1, 0)
-                    state.TextXAlignment = Enum.TextXAlignment.Center
+                    local markLabel = createLabel(row, isSelected and "✓" or "○", 11, isSelected and accent or Library.Theme.Muted, Enum.FontWeight.Bold)
+                    markLabel.Position = UDim2.new(1, -32, 0, 0)
+                    markLabel.Size = UDim2.new(0, 22, 1, 0)
+                    markLabel.TextXAlignment = Enum.TextXAlignment.Center
 
                     row.MouseEnter:Connect(function()
-                        tween(row, 0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.AccentSoft })
+                        if not selected[key] then
+                            tween(row, 0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.AccentSoft })
+                        end
                     end)
                     row.MouseLeave:Connect(function()
-                        tween(row, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = selected[key] and Library.Theme.AccentSoft or Library.Theme.Surface3 })
+                        if not selected[key] then
+                            tween(row, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.Surface3 })
+                        else
+                            tween(row, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.AccentSoft })
+                        end
                     end)
                     row.Activated:Connect(function()
                         selected[key] = not selected[key]
                         updateSummary()
                         rebuild()
-                        local values = {}
-                        for _, value in ipairs(options) do
-                            if selected[tostring(value)] then table.insert(values, value) end
-                        end
                         safeCall(callback, getValues())
                     end)
                 end
@@ -1400,6 +1405,16 @@ function Library:CreateWindow(titleText, accentColor)
                 end,
                 Toggle = function() renderOpen(not open) end,
                 IsOpen = function() return open end,
+                SelectAll = function()
+                    for _, option in ipairs(options) do selected[tostring(option)] = true end
+                    rebuild()
+                    safeCall(callback, getValues())
+                end,
+                Clear = function()
+                    table.clear(selected)
+                    rebuild()
+                    safeCall(callback, getValues())
+                end,
             }
         end
 
@@ -1462,7 +1477,7 @@ function Library:CreateWindow(titleText, accentColor)
             local current = default or accent
             local h, s, v = Color3.toHSV(current)
 
-            local card, brackets, edge = makeCard(page, 200)
+            local card, brackets, edge = makeCard(page, 208)
             cardHover(card, brackets, edge)
 
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
@@ -1480,7 +1495,7 @@ function Library:CreateWindow(titleText, accentColor)
 
             local svPanel = Instance.new("Frame")
             svPanel.Position = UDim2.new(0, 20, 0, 34)
-            svPanel.Size = UDim2.new(1, -80, 0, 82)
+            svPanel.Size = UDim2.new(1, -80, 0, 86)
             svPanel.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
             svPanel.BorderSizePixel = 0
             svPanel.ClipsDescendants = true
@@ -1502,8 +1517,8 @@ function Library:CreateWindow(titleText, accentColor)
             local blackGrad = Instance.new("UIGradient")
             blackGrad.Rotation = 90
             blackGrad.Transparency = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 0),
-                NumberSequenceKeypoint.new(1, 1),
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(1, 0),
             })
             blackGrad.Parent = blackOverlay
 
@@ -1518,7 +1533,7 @@ function Library:CreateWindow(titleText, accentColor)
             addCorner(svCursor, 5)
 
             local hueBar = Instance.new("Frame")
-            hueBar.Position = UDim2.new(0, 20, 0, 122)
+            hueBar.Position = UDim2.new(0, 20, 0, 126)
             hueBar.Size = UDim2.new(1, -80, 0, 14)
             hueBar.BackgroundColor3 = Color3.new(1, 1, 1)
             hueBar.BorderSizePixel = 0
@@ -1546,7 +1561,7 @@ function Library:CreateWindow(titleText, accentColor)
             addCorner(hueCursor, 2)
 
             local alphaBar = Instance.new("Frame")
-            alphaBar.Position = UDim2.new(0, 20, 0, 142)
+            alphaBar.Position = UDim2.new(0, 20, 0, 148)
             alphaBar.Size = UDim2.new(1, -80, 0, 12)
             alphaBar.BackgroundColor3 = Color3.new(1, 1, 1)
             alphaBar.BorderSizePixel = 0
@@ -1597,7 +1612,7 @@ function Library:CreateWindow(titleText, accentColor)
             local alphaValue = 0
 
             local swatchRow = Instance.new("Frame")
-            swatchRow.Position = UDim2.new(0, 20, 0, 160)
+            swatchRow.Position = UDim2.new(0, 20, 0, 168)
             swatchRow.Size = UDim2.new(1, -40, 0, 16)
             swatchRow.BackgroundTransparency = 1
             swatchRow.Parent = card
@@ -1607,8 +1622,8 @@ function Library:CreateWindow(titleText, accentColor)
             swatchLayout.Parent = swatchRow
 
             local hexRow = Instance.new("Frame")
-            hexRow.Position = UDim2.new(0, 20, 0, 180)
-            hexRow.Size = UDim2.new(1, -40, 0, 20)
+            hexRow.Position = UDim2.new(0, 20, 0, 186)
+            hexRow.Size = UDim2.new(1, -40, 0, 18)
             hexRow.BackgroundTransparency = 1
             hexRow.Parent = card
             local hexLayout = Instance.new("UIListLayout")
@@ -1959,13 +1974,14 @@ function Library:CreateWindow(titleText, accentColor)
         transitioning = true
         floatingPosition = Main.Position
         Bubble.Visible = false
+        BubbleButton.Visible = false
         Main.BackgroundTransparency = 0
         Dimmer.Visible = true
         local size = windowSize()
         tween(Dimmer, 0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = Library.Theme.DimTransparency })
-        tween(MainStroke, 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = accent, Transparency = 0.55 })
-        spring(MainCorner, 0.30, { CornerRadius = UDim.new(0, 4) })
-        local t = spring(Main, 0.42, { Size = size, Position = centeredWindowPosition(size) })
+        tween(MainStroke, 0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = accent, Transparency = 0.65 })
+        spring(MainCorner, 0.32, { CornerRadius = UDim.new(0, 4) })
+        local t = spring(Main, 0.44, { Size = size, Position = centeredWindowPosition(size) })
         if t then t.Completed:Connect(function()
             Content.Visible = true
             transitioning = false
@@ -1980,61 +1996,77 @@ function Library:CreateWindow(titleText, accentColor)
         Content.Visible = false
         tween(Dimmer, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = 1 })
         task.delay(0.20, function() if Dimmer.Parent and not isOpen then Dimmer.Visible = false end end)
-        tween(MainStroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = Library.Theme.Border, Transparency = 0.3 })
+        tween(MainStroke, 0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = Library.Theme.Border, Transparency = 0.3 })
+        spring(MainCorner, 0.28, { CornerRadius = UDim.new(0, 14) })
         local fs = floatingSize()
         floatingPosition = clampFloating(floatingPosition, Vector2.new(fs, fs))
-        local t = spring(Main, 0.38, { Size = UDim2.new(0, fs, 0, fs), Position = floatingPosition }, Enum.EasingDirection.In)
+        local t = spring(Main, 0.40, { Size = UDim2.new(0, fs, 0, fs), Position = floatingPosition }, Enum.EasingDirection.In)
         if t then t.Completed:Connect(function()
             transitioning = false
             Bubble.Visible = true
+            BubbleButton.Visible = true
             fitToViewport()
         end) end
     end
 
-    minimizeButton = headerButton("-", -72, minimizeWindow)
-    closeButton = headerButton("x", -40, function()
+    minimizeButton = headerButton("−", -72, minimizeWindow)
+    closeButton = headerButton("×", -40, function()
         if closing then return end
         closing = true
         transitioning = true
         Dimmer.BackgroundTransparency = 1
         local center = Main.AbsolutePosition + Main.AbsoluteSize / 2
-        local t = tween(Main, 0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {
-            Size = UDim2.new(0, 0, 0, 0),
+        tween(MainStroke, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In, { Transparency = 1, Color = accent })
+        local t = TweenService:Create(Main, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 4, 0, 4),
             Position = UDim2.new(0, center.X, 0, center.Y),
             BackgroundTransparency = 1,
+            Rotation = 24,
         })
-        tween(MainStroke, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In, { Transparency = 1 })
-        if t then t.Completed:Connect(function() windowMaid:Destroy() end) else windowMaid:Destroy() end
+        t:Play()
+        t.Completed:Connect(function() windowMaid:Destroy() end)
     end)
 
     local dragOwner = {}
     local clickStart
     local dragStart
-    BubbleButton.Activated:Connect(function()
-        if isOpen or closing or transitioning then return end
-        openWindow()
-    end)
+    local dragging = false
+
     BubbleButton.InputBegan:Connect(function(input)
         if isOpen or closing or transitioning then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         clickStart = input.Position
         dragStart = Main.AbsolutePosition
-        beginPointer(dragOwner, input, function(moveInput)
+        dragging = false
+        if not beginPointer(dragOwner, input, function(moveInput)
+            if not clickStart then return end
             local delta = moveInput.Position - clickStart
-            local size = Main.AbsoluteSize
-            local target = UDim2.fromOffset(dragStart.X + delta.X, dragStart.Y + delta.Y)
-            Main.Position = clampFloating(target, size)
-            floatingPosition = Main.Position
+            if not dragging and delta.Magnitude > Library.Config.TapThreshold * 0.4 then
+                dragging = true
+                spring(Main, 0.20, { Size = UDim2.new(0, floatingSize() + 4, 0, floatingSize() + 4) })
+                tween(MainStroke, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = accent, Transparency = 0.4 })
+            end
+            if dragging then
+                local size = Main.AbsoluteSize
+                local target = UDim2.fromOffset(dragStart.X + delta.X, dragStart.Y + delta.Y)
+                Main.Position = clampFloating(target, size)
+                floatingPosition = Main.Position
+            end
         end, function(endInput)
             if clickStart then
                 local moved = (endInput.Position - clickStart).Magnitude
-                if moved >= Library.Config.TapThreshold then
+                if moved < Library.Config.TapThreshold then
+                    openWindow()
+                else
                     floatingPosition = clampFloating(Main.Position, Main.AbsoluteSize)
-                    snap(Main, { Position = floatingPosition })
+                    spring(Main, 0.28, { Position = floatingPosition, Size = UDim2.new(0, floatingSize(), 0, floatingSize()) })
+                    tween(MainStroke, 0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = Library.Theme.Border, Transparency = 0.3 })
                 end
             end
+            clickStart, dragStart, dragging = nil, nil, false
+        end) then
             clickStart, dragStart = nil, nil
-        end)
+        end
     end)
 
     local DragHandle = hitZone(Header)
@@ -2112,12 +2144,6 @@ function Library:CreateWindow(titleText, accentColor)
             end
         end
     end
-
-    task.defer(function()
-        if not closing and ScreenGui.Parent then
-            openWindow()
-        end
-    end)
 
     return Window
 end
