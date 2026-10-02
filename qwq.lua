@@ -1,6 +1,6 @@
--- [[ qwq · Liquid Glass UI Library · v3 ]] --
--- 白粉莫兰迪 · MIUI 14 控件 · 暗化遮罩代替 BlurEffect
--- 性能优先：全局单指针拖拽 / 精简描边 / 无全屏模糊
+-- [[ qwq · Liquid Glass UI Library · v2 ]] --
+-- 定制级 Frosted UI · 移动端优先 · 克制动效 · 统一设计系统
+-- V2：响应式窗口 / 统一组件节奏 / 状态驱动动画 / 清理生命周期
 
 local Library = {}
 local TweenService     = game:GetService("TweenService")
@@ -11,24 +11,31 @@ local LocalPlayer      = Players.LocalPlayer
 
 -- ==================== 🎨 莫兰迪粉主题 ====================
 Library.Theme = {
-    Accent        = Color3.fromRGB(236, 138, 169),
-    AccentLight   = Color3.fromRGB(248, 200, 216),
-    AccentSoft    = Color3.fromRGB(255, 235, 242),
-    AccentDeep    = Color3.fromRGB(210, 100, 135),
+    -- Accent：保留原来的粉色识别度，但降低“糖果感”
+    Accent        = Color3.fromRGB(226, 116, 151),
+    AccentLight   = Color3.fromRGB(246, 185, 204),
+    AccentSoft    = Color3.fromRGB(250, 232, 239),
+    AccentDeep    = Color3.fromRGB(188, 78, 116),
 
-    Glass         = Color3.fromRGB(248, 246, 249),
-    GlassCard     = Color3.fromRGB(252, 250, 253),
-    GlassBorder   = Color3.fromRGB(235, 220, 228),
+    -- Frosted surface：更接近定制工具的中性玻璃，而不是纯白卡片堆叠
+    Glass         = Color3.fromRGB(244, 242, 245),
+    GlassCard     = Color3.fromRGB(250, 248, 250),
+    GlassBorder   = Color3.fromRGB(214, 207, 214),
 
-    TextPrimary   = Color3.fromRGB( 75,  60,  70),
-    TextSecond    = Color3.fromRGB(145, 125, 138),
-    TextMuted     = Color3.fromRGB(190, 175, 185),
+    TextPrimary   = Color3.fromRGB(48, 43, 49),
+    TextSecond    = Color3.fromRGB(116, 107, 118),
+    TextMuted     = Color3.fromRGB(166, 157, 168),
     TextWhite     = Color3.fromRGB(255, 255, 255),
-    SwitchOff     = Color3.fromRGB(225, 218, 224),
+    SwitchOff     = Color3.fromRGB(210, 204, 211),
 
-    -- 暗化遮罩色（深粉紫，代替 BlurEffect）
-    DimColor      = Color3.fromRGB(40, 24, 40),
-    DimAmount     = 0.55, -- 展开时暗化强度
+    DimColor      = Color3.fromRGB(19, 15, 20),
+    DimAmount     = 0.46,
+
+    -- V2 spacing tokens
+    RadiusLarge  = 14,
+    RadiusMedium = 10,
+    RadiusSmall  = 8,
+    Gap          = 7,
 }
 
 -- ==================== 🔤 字体 ====================
@@ -51,6 +58,21 @@ local function ApplyFont(label, weight)
     weight = weight or Enum.FontWeight.SemiBold
     pcall(function()
         label.FontFace = Font.new(Library.CurrentFontFamily, weight, Enum.FontStyle.Normal)
+    end)
+end
+
+local function IsPointer(input)
+    return input and (
+        input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch
+    )
+end
+
+local function SafeCallback(callback, ...)
+    if type(callback) ~= "function" then return end
+    local args = table.pack(...)
+    task.spawn(function()
+        pcall(function() callback(table.unpack(args, 1, args.n)) end)
     end)
 end
 
@@ -86,7 +108,7 @@ local function ApplyGlass(frame, opts)
     opts = opts or {}
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, opts.radius or 12)
+    corner.CornerRadius = UDim.new(0, opts.radius or Library.Theme.RadiusMedium)
     corner.Parent = frame
 
     local stroke
@@ -94,7 +116,7 @@ local function ApplyGlass(frame, opts)
         stroke = Instance.new("UIStroke")
         stroke.Color = opts.strokeColor or Library.Theme.GlassBorder
         stroke.Thickness = opts.strokeThickness or 1
-        stroke.Transparency = opts.strokeTransparency or 0.4
+        stroke.Transparency = opts.strokeTransparency or 0.48
         stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         stroke.Parent = frame
     end
@@ -122,7 +144,7 @@ end
 local function AddHoverStroke(frame, color)
     local s = Instance.new("UIStroke")
     s.Color = color or Library.Theme.Accent
-    s.Thickness = 1
+    s.Thickness = 0.8
     s.Transparency = 1
     s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     s.Parent = frame
@@ -157,7 +179,7 @@ local function MakeDraggable(handle, target, opts)
             dragStart = input.Position
             startPos = target.Position
             if opts.scaleOnDrag then
-                Animate(scale, 0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out,
+                Animate(scale, 0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
                     { Scale = 1.08 })
             end
 
@@ -176,7 +198,7 @@ local function MakeDraggable(handle, target, opts)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             if opts.scaleOnDrag then
-                Animate(scale, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out,
+                Animate(scale, 0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
                     { Scale = 1 })
             end
             if moved and opts.onDragEnd then opts.onDragEnd() end
@@ -194,12 +216,12 @@ local function CreateNotificationContainer()
     NotificationGui.Name = "qwqNotifications"
     NotificationGui.ResetOnSpawn = false
     NotificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    NotificationGui.Parent = GetGuiParent()
+    NotificationGui.Parent = Library._NotificationParent or GetGuiParent()
 
     local FrameList = Instance.new("Frame")
     FrameList.Name = "FrameList"
     FrameList.AnchorPoint = Vector2.new(1, 1)
-    FrameList.Size = UDim2.new(0, 240, 0, 520)
+    FrameList.Size = UDim2.new(0, 260, 0, 520)
     FrameList.Position = UDim2.new(1, -16, 1, -16)
     FrameList.BackgroundTransparency = 1
     FrameList.Parent = NotificationGui
@@ -232,7 +254,7 @@ function Library:Notify(titleText, descText, duration, notifType)
 
     -- 用 Frame + 手动控制透明度（比 CanvasGroup 更轻）
     local Toast = Instance.new("Frame")
-    Toast.Size = UDim2.new(1, 0, 0, 52)
+    Toast.Size = UDim2.new(1, 0, 0, 56)
     Toast.BackgroundColor3 = Library.Theme.GlassCard
     Toast.BackgroundTransparency = 1
     Toast.BorderSizePixel = 0
@@ -253,9 +275,9 @@ function Library:Notify(titleText, descText, duration, notifType)
     Title.Size = UDim2.new(1, -32, 0, 18)
     Title.Position = UDim2.new(0, 18, 0, 7)
     Title.BackgroundTransparency = 1
-    Title.Text = titleText:upper()
+    Title.Text = titleText
     Title.TextColor3 = style.color
-    Title.TextSize = 11
+    Title.TextSize = 10
     Title.TextTransparency = 1
     ApplyFont(Title, Enum.FontWeight.Bold)
     Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -267,7 +289,7 @@ function Library:Notify(titleText, descText, duration, notifType)
     Desc.BackgroundTransparency = 1
     Desc.Text = descText
     Desc.TextColor3 = Library.Theme.TextPrimary
-    Desc.TextSize = 10
+    Desc.TextSize = 11
     Desc.TextTransparency = 1
     ApplyFont(Desc, Enum.FontWeight.Medium)
     Desc.TextXAlignment = Enum.TextXAlignment.Left
@@ -350,6 +372,11 @@ end
 
 -- ==================== 🪟 主窗口 ====================
 function Library:CreateWindow(titleText, accentColor)
+    if NotificationGui and NotificationGui.Parent then
+        NotificationGui:Destroy()
+        NotificationGui = nil
+    end
+    Library._NotificationParent = nil
     titleText   = titleText   or "QWQ"
     accentColor = accentColor or Library.Theme.Accent
     Library.Theme.Accent = accentColor
@@ -359,6 +386,7 @@ function Library:CreateWindow(titleText, accentColor)
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.Parent = GetGuiParent()
+    Library._NotificationParent = ScreenGui
 
     for _, old in ipairs(GetGuiParent():GetChildren()) do
         if old ~= ScreenGui and old.Name:match("^qwqMorph_") then
@@ -396,10 +424,10 @@ function Library:CreateWindow(titleText, accentColor)
     --]]
 
     -- ---------- 尺寸参数 ----------
-    local windowSize    = UDim2.new(0, 500, 0, 340)
-    local windowCenter  = UDim2.new(0.5, -250, 0.5, -170)
-    local floatSize     = UDim2.new(0, 52, 0, 52)
-    local lastFloatPos  = UDim2.new(0.92, 0, 0.5, -26)
+    local windowSize    = UDim2.fromOffset(500, 340)
+    local windowCenter  = UDim2.fromScale(0.5, 0.5)
+    local floatSize     = UDim2.fromOffset(52, 52)
+    local lastFloatPos  = UDim2.new(0.94, 0, 0.5, 0)
 
     -- ---------- MainFrame ----------
     local MainFrame = Instance.new("Frame")
@@ -409,9 +437,25 @@ function Library:CreateWindow(titleText, accentColor)
     MainFrame.BackgroundColor3 = Library.Theme.GlassCard
     MainFrame.BackgroundTransparency = 0.15
     MainFrame.BorderSizePixel = 0
+    MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     MainFrame.ClipsDescendants = true
     MainFrame.ZIndex = 2
     MainFrame.Parent = ScreenGui
+
+    -- 响应式缩放：不改变布局坐标，直接按屏幕尺寸整体缩放，移动端不会把侧栏挤坏
+    local ResponsiveScale = Instance.new("UIScale")
+    ResponsiveScale.Scale = 1
+    ResponsiveScale.Parent = MainFrame
+
+    local Camera = workspace.CurrentCamera
+    local function UpdateResponsiveScale()
+        if not Camera then return end
+        local vp = Camera.ViewportSize
+        local scale = math.min(1, vp.X / 560, vp.Y / 410)
+        ResponsiveScale.Scale = math.clamp(scale, 0.62, 1)
+    end
+    UpdateResponsiveScale()
+    local viewportConn = Camera and Camera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateResponsiveScale)
 
     local MainCorner = Instance.new("UICorner")
     MainCorner.CornerRadius = UDim.new(1, 0)
@@ -420,7 +464,7 @@ function Library:CreateWindow(titleText, accentColor)
     local MainStroke = Instance.new("UIStroke")
     MainStroke.Color = accentColor
     MainStroke.Thickness = 1
-    MainStroke.Transparency = 0.4
+    MainStroke.Transparency = 0.52
     MainStroke.Parent = MainFrame
 
     -- 主渐变（玻璃反光）
@@ -431,9 +475,9 @@ function Library:CreateWindow(titleText, accentColor)
         ColorSequenceKeypoint.new(1.00, Color3.fromRGB(250, 244, 250)),
     })
     MainGrad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0.00, 0.05),
-        NumberSequenceKeypoint.new(0.55, 0.28),
-        NumberSequenceKeypoint.new(1.00, 0.12),
+        NumberSequenceKeypoint.new(0.00, 0.14),
+        NumberSequenceKeypoint.new(0.55, 0.34),
+        NumberSequenceKeypoint.new(1.00, 0.20),
     })
     MainGrad.Parent = MainFrame
 
@@ -492,7 +536,7 @@ function Library:CreateWindow(titleText, accentColor)
             { CornerRadius = UDim.new(0, 16) })
 
         -- 尺寸 + 位置 + 暗化
-        Animate(MainFrame, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+        Animate(MainFrame, 0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, {
             Size = windowSize,
             Position = windowCenter,
             BackgroundTransparency = 0.25,
@@ -522,7 +566,7 @@ function Library:CreateWindow(titleText, accentColor)
             Animate(Dimmer, 0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                 { BackgroundTransparency = 1 })
 
-            local back = Animate(MainFrame, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+            local back = Animate(MainFrame, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, {
                 Size = floatSize,
                 Position = lastFloatPos,
                 BackgroundTransparency = 0.15,
@@ -557,15 +601,20 @@ function Library:CreateWindow(titleText, accentColor)
         Animate(MainCorner, 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In,
             { CornerRadius = UDim.new(1, 0) })
 
-        local t = Animate(MainFrame, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In, {
+        local t = Animate(MainFrame, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
             Size = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.new(0, centerX, 0, centerY),
+            Position = UDim2.fromOffset(centerX, centerY),
             BackgroundTransparency = 1,
         })
 
         t.Completed:Connect(function()
             if rotationConn then rotationConn:Disconnect() end
             if fpsConn then fpsConn:Disconnect() end
+            if viewportConn then viewportConn:Disconnect() end
+            if NotificationGui and NotificationGui.Parent then
+                NotificationGui:Destroy()
+                NotificationGui = nil
+            end
             ScreenGui:Destroy()
         end)
     end
@@ -607,17 +656,13 @@ function Library:CreateWindow(titleText, accentColor)
         local pos = MainFrame.AbsolutePosition
         local size = MainFrame.AbsoluteSize
         local centerX = pos.X + size.X / 2
-        local targetX
-        if centerX < viewport.X / 2 then
-            targetX = 12
-        else
-            targetX = viewport.X - size.X - 12
-        end
-        local targetY = math.clamp(pos.Y, 12, viewport.Y - size.Y - 12)
-        Animate(MainFrame, 0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-            Position = UDim2.new(0, targetX, 0, targetY)
+        local targetX = (centerX < viewport.X / 2) and 28 or (viewport.X - 28)
+        local targetY = math.clamp(pos.Y + size.Y / 2, 28, viewport.Y - 28)
+
+        Animate(MainFrame, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, {
+            Position = UDim2.fromOffset(targetX, targetY)
         })
-        lastFloatPos = UDim2.new(0, targetX, 0, targetY)
+        lastFloatPos = UDim2.fromOffset(targetX, targetY)
     end
 
     MakeDraggable(MainFrame, MainFrame, {
@@ -642,7 +687,7 @@ function Library:CreateWindow(titleText, accentColor)
     TopCover.Size = UDim2.new(1, 0, 0, 14)
     TopCover.Position = UDim2.new(0, 0, 1, -14)
     TopCover.BackgroundColor3 = Library.Theme.GlassCard
-    TopCover.BackgroundTransparency = 0.3
+    TopCover.BackgroundTransparency = 0.72
     TopCover.BorderSizePixel = 0
     TopCover.Parent = TopBar
 
@@ -664,7 +709,7 @@ function Library:CreateWindow(titleText, accentColor)
     Title.Size = UDim2.new(1, -100, 1, 0)
     Title.Position = UDim2.new(0, 34, 0, 0)
     Title.BackgroundTransparency = 1
-    Title.Text = titleText:upper()
+    Title.Text = titleText
     Title.TextColor3 = Library.Theme.TextPrimary
     Title.TextSize = 13
     ApplyFont(Title, Enum.FontWeight.Bold)
@@ -706,7 +751,7 @@ function Library:CreateWindow(titleText, accentColor)
     -- ---------- 侧边栏 ----------
     local SideBar = Instance.new("Frame")
     SideBar.Name = "SideBar"
-    SideBar.Size = UDim2.new(0, 120, 1, -44)
+    SideBar.Size = UDim2.new(0, 112, 1, -44)
     SideBar.Position = UDim2.new(0, 0, 0, 44)
     SideBar.BackgroundTransparency = 1
     SideBar.Parent = ContentContainer
@@ -721,7 +766,7 @@ function Library:CreateWindow(titleText, accentColor)
     TabContainer.Parent = SideBar
 
     local TabList = Instance.new("UIListLayout")
-    TabList.Padding = UDim.new(0, 5)
+    TabList.Padding = UDim.new(0, 4)
     TabList.Parent = TabContainer
 
     -- ---------- 底部状态栏 ----------
@@ -749,8 +794,9 @@ function Library:CreateWindow(titleText, accentColor)
     end
 
     local FpsLabel    = MakeInfoLabel("帧率: --", 6)
-    local VolLabel    = MakeInfoLabel("音量: --", 24)
-    local StatusLabel = MakeInfoLabel("状态: 运行中", 42)
+    local BuildLabel   = MakeInfoLabel("BUILD  ·  V2", 24)
+    local StatusLabel = MakeInfoLabel("STATUS · READY", 42)
+    BuildLabel.TextColor3 = Library.Theme.TextSecond
     StatusLabel.TextColor3 = accentColor
 
     -- FPS 用 Heartbeat，且最小化时不采样
@@ -780,8 +826,8 @@ function Library:CreateWindow(titleText, accentColor)
     -- ---------- 内容区 ----------
     local ContentFrame = Instance.new("Frame")
     ContentFrame.Name = "ContentFrame"
-    ContentFrame.Size = UDim2.new(1, -132, 1, -56)
-    ContentFrame.Position = UDim2.new(0, 126, 0, 48)
+    ContentFrame.Size = UDim2.new(1, -124, 1, -56)
+    ContentFrame.Position = UDim2.new(0, 118, 0, 48)
     ContentFrame.BackgroundTransparency = 1
     ContentFrame.Parent = ContentContainer
 
@@ -812,7 +858,7 @@ function Library:CreateWindow(titleText, accentColor)
         Pad.Parent = Page
 
         local PageLayout = Instance.new("UIListLayout")
-        PageLayout.Padding = UDim.new(0, 8)
+        PageLayout.Padding = UDim.new(0, 7)
         PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
         PageLayout.Parent = Page
 
@@ -822,7 +868,7 @@ function Library:CreateWindow(titleText, accentColor)
 
         -- 侧栏 Tab 按钮（玻璃胶囊）
         local TabBtn = Instance.new("TextButton")
-        TabBtn.Size = UDim2.new(1, -4, 0, 34)
+        TabBtn.Size = UDim2.new(1, -8, 0, 32)
         TabBtn.BackgroundColor3 = Library.Theme.GlassCard
         TabBtn.BackgroundTransparency = 1
         TabBtn.Text = ""
@@ -909,7 +955,7 @@ function Library:CreateWindow(titleText, accentColor)
                 { BackgroundTransparency = 0.25 })
             Animate(TabStroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                 { Transparency = 0.45 })
-            Animate(Marker, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out,
+            Animate(Marker, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
                 { BackgroundTransparency = 0 })
         end
 
@@ -928,7 +974,7 @@ function Library:CreateWindow(titleText, accentColor)
             Card.BackgroundColor3 = Library.Theme.GlassCard
             Card.BackgroundTransparency = 0.3
             Card.Parent = Page
-            ApplyGlass(Card, { radius = 12 })
+            ApplyGlass(Card, { radius = Library.Theme.RadiusMedium })
             return Card
         end
 
@@ -966,7 +1012,7 @@ function Library:CreateWindow(titleText, accentColor)
             T.Size = UDim2.new(1, -14, 1, 0)
             T.Position = UDim2.new(0, 10, 0, 0)
             T.BackgroundTransparency = 1
-            T.Text = titleText:upper()
+            T.Text = titleText
             T.TextColor3 = Library.Theme.TextSecond
             T.TextSize = 10
             ApplyFont(T, Enum.FontWeight.Bold)
@@ -1031,7 +1077,7 @@ function Library:CreateWindow(titleText, accentColor)
             Btn.AutoButtonColor = false
             ApplyFont(Btn, Enum.FontWeight.Bold)
             Btn.Parent = Page
-            ApplyGlass(Btn, { radius = 12 })
+            ApplyGlass(Btn, { radius = Library.Theme.RadiusMedium })
 
             local hoverStroke
             Btn.MouseEnter:Connect(function()
@@ -1049,12 +1095,12 @@ function Library:CreateWindow(titleText, accentColor)
             end)
             Btn.MouseButton1Down:Connect(function()
                 Animate(Btn, 0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
-                    { Size = UDim2.new(0.97, 0, 0, 34) })
+                    { BackgroundTransparency = 0.08 })
             end)
-            Btn.MouseButton1Up:Connect(function()
-                Animate(Btn, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out,
-                    { Size = UDim2.new(1, 0, 0, 36) })
-                task.spawn(callback)
+            Btn.Activated:Connect(function()
+                Animate(Btn, 0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
+                    { BackgroundTransparency = 0.3 })
+                SafeCallback(callback)
             end)
             return Btn
         end
@@ -1112,12 +1158,12 @@ function Library:CreateWindow(titleText, accentColor)
                 Animate(Dot, 0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                     { Size = UDim2.new(0, 26, 0, 16) })
                 task.delay(0.1, function()
-                    Animate(Dot, 0.22, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out,
+                    Animate(Dot, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
                         { Size = UDim2.new(0, 18, 0, 18) })
                 end)
                 Animate(Switch, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                     { BackgroundColor3 = targetColor })
-                Animate(Dot, 0.26, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out,
+                Animate(Dot, 0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
                     { Position = targetPos })
 
                 Animate(CardStroke, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
@@ -1125,10 +1171,10 @@ function Library:CreateWindow(titleText, accentColor)
                     Transparency = state and 0.35 or 0.55,
                 })
 
-                task.spawn(function() pcall(callback, state) end)
+                SafeCallback(callback, state)
             end
 
-            Click.MouseButton1Click:Connect(function()
+            Click.Activated:Connect(function()
                 state = not state
                 Update()
             end)
@@ -1180,12 +1226,13 @@ function Library:CreateWindow(titleText, accentColor)
             ValLabel.Parent = Card
 
             local function Update(input)
+                local width = math.max(Card.AbsoluteSize.X, 1)
                 local pct = math.clamp(
-                    (input.Position.X - Card.AbsolutePosition.X) / Card.AbsoluteSize.X, 0, 1)
-                local value = math.floor(min + (max - min) * pct)
+                    (input.Position.X - Card.AbsolutePosition.X) / width, 0, 1)
+                local value = (max == min) and min or math.floor(min + (max - min) * pct + 0.5)
                 Fill.Size = UDim2.new(pct, 0, 1, 0)
                 ValLabel.Text = tostring(value)
-                task.spawn(function() pcall(callback, value) end)
+                SafeCallback(callback, value)
             end
 
             Card.InputBegan:Connect(function(input)
@@ -1197,11 +1244,11 @@ function Library:CreateWindow(titleText, accentColor)
             end)
 
             return { Set = function(_, v)
-                local pct = (math.clamp(v, min, max) - min) / (max - min)
+                local pct = (max == min) and 0 or (math.clamp(v, min, max) - min) / (max - min)
                 Animate(Fill, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                     { Size = UDim2.new(pct, 0, 1, 0) })
                 ValLabel.Text = tostring(v)
-                task.spawn(function() pcall(callback, v) end)
+                SafeCallback(callback, v)
             end }
         end
 
@@ -1240,7 +1287,7 @@ function Library:CreateWindow(titleText, accentColor)
             Box.FocusLost:Connect(function()
                 Animate(CardStroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                     { Color = Library.Theme.GlassBorder, Transparency = 0.55 })
-                task.spawn(function() pcall(callback, Box.Text) end)
+                SafeCallback(callback, Box.Text)
             end)
             return {
                 GetText = function() return Box.Text end,
@@ -1312,7 +1359,7 @@ function Library:CreateWindow(titleText, accentColor)
             local function Toggle()
                 open = not open
                 local target = open and (HEAD_H + CalcBodyHeight()) or HEAD_H
-                Animate(Card, 0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out,
+                Animate(Card, 0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out,
                     { Size = UDim2.new(1, 0, 0, target) })
                 Animate(Arrow, 0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                     { Rotation = open and 180 or 0 })
@@ -1345,10 +1392,10 @@ function Library:CreateWindow(titleText, accentColor)
                         Animate(Opt, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out,
                             { BackgroundTransparency = 0.5 })
                     end)
-                    Opt.MouseButton1Click:Connect(function()
+                    Opt.Activated:Connect(function()
                         Label.Text = text .. ": " .. tostring(name)
                         Toggle()
-                        task.spawn(function() pcall(callback, name) end)
+                        SafeCallback(callback, name)
                     end)
                 end
             end
@@ -1421,7 +1468,7 @@ function Library:CreateWindow(titleText, accentColor)
                     { Color = Library.Theme.GlassBorder, Transparency = 0.55 })
             end
 
-            KeyBtn.MouseButton1Click:Connect(function()
+            KeyBtn.Activated:Connect(function()
                 if listening then StopListening() return end
                 listening = true
                 KeyBtn.Text = "按下按键..."
@@ -1438,7 +1485,7 @@ function Library:CreateWindow(titleText, accentColor)
                     if input.UserInputType == Enum.UserInputType.Keyboard then
                         currentKey = input.KeyCode.Name
                         StopListening()
-                        task.spawn(function() pcall(callback, input.KeyCode) end)
+                        SafeCallback(callback, input.KeyCode)
                     end
                 end)
             end)
@@ -1461,7 +1508,7 @@ function Library:CreateWindow(titleText, accentColor)
             local current = default
 
             local Card = MakeCard(48)
-            ApplyGlass(Card, { radius = 12 })
+            ApplyGlass(Card, { radius = Library.Theme.RadiusMedium })
 
             local Label = Instance.new("TextLabel")
             Label.Size = UDim2.new(1, -100, 0, 20)
@@ -1520,7 +1567,7 @@ function Library:CreateWindow(titleText, accentColor)
                     if ch == "r" then r = v elseif ch == "g" then g = v else b = v end
                     current = Color3.fromRGB(r, g, b)
                     Preview.BackgroundColor3 = current
-                    task.spawn(function() pcall(callback, current) end)
+                    SafeCallback(callback, current)
                 end
 
                 btn.InputBegan:Connect(function(input)
@@ -1541,7 +1588,7 @@ function Library:CreateWindow(titleText, accentColor)
                 Set = function(_, c)
                     current = c
                     Preview.BackgroundColor3 = c
-                    task.spawn(function() pcall(callback, c) end)
+                    SafeCallback(callback, c)
                 end,
             }
         end
@@ -1600,6 +1647,33 @@ function Library:CreateWindow(titleText, accentColor)
         end
 
         return Elements
+    end
+
+    -- V2：窗口级控制接口，方便宿主在 respawn / unload / 状态切换时正确清理
+    function Pages:SetVisible(visible)
+        if closing then return end
+        if visible and isMinimized then
+            ToggleUI()
+        elseif (not visible) and (not isMinimized) then
+            ToggleUI()
+        end
+    end
+
+    function Pages:Destroy()
+        if closing then return end
+        closing = true
+        if rotationConn then rotationConn:Disconnect() end
+        if fpsConn then fpsConn:Disconnect() end
+        if viewportConn then viewportConn:Disconnect() end
+        if NotificationGui and NotificationGui.Parent then
+            NotificationGui:Destroy()
+            NotificationGui = nil
+        end
+        if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end
+    end
+
+    function Pages:IsOpen()
+        return not isMinimized and not closing
     end
 
     return Pages
