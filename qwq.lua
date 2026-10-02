@@ -1,10 +1,10 @@
 --[[
-    QWQ UI Library V9 "SIGNAL"
+    QWQ UI Library V10 "PAPERLINE"
     Mobile-first Roblox UI framework.
-    Identity: ink-dark surfaces, acid-lime accent, monospace type,
-    sharp corners, bracket marks. Deliberately not another purple-gradient UI.
+    Identity: porcelain surfaces, indigo signal, Builder Sans typography,
+    asymmetric index navigation and paper-like control tiles.
 
-    V9 changelog (drag / touch fixes):
+    V10 changelog (interaction + layout + light redesign):
       [FIX-1] Overlay buttons with BackgroundTransparency == 1 and empty text are
               NOT hit-testable in Roblox. Toggle / Button / Dropdown / header
               drag handle were all dead because of this. Replaced with a
@@ -23,7 +23,7 @@
       [FIX-6] Tap-vs-drag threshold tuned for touch; pointer sessions are
               cleaned up on cancel as well as release.
 
-    Public API is unchanged from V8 — drop-in replacement.
+    Public API remains drop-in compatible with the previous QWQ releases.
 ]]
 
 local Library = {}
@@ -34,43 +34,45 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "9.0.0"
+Library.Version = "10.0.0"
 
 -- SIGNAL palette: ink + acid lime + mono neutrals
 Library.Theme = {
-    Accent = Color3.fromRGB(198, 241, 53),      -- acid lime
-    AccentSoft = Color3.fromRGB(230, 250, 150),
-    AccentDeep = Color3.fromRGB(118, 150, 24),
-    AccentInk = Color3.fromRGB(16, 20, 8),      -- dark content on accent
-    Background = Color3.fromRGB(9, 11, 13),     -- deepest ink
-    Surface = Color3.fromRGB(15, 18, 21),       -- window body
-    Surface2 = Color3.fromRGB(21, 25, 29),      -- cards
-    Surface3 = Color3.fromRGB(30, 35, 40),      -- wells / tracks
-    Border = Color3.fromRGB(56, 63, 69),
-    BorderSoft = Color3.fromRGB(38, 43, 48),
-    Text = Color3.fromRGB(231, 238, 227),
-    Text2 = Color3.fromRGB(148, 157, 145),
-    Muted = Color3.fromRGB(92, 100, 91),
+    -- LIGHT / PAPER palette: warm porcelain + indigo signal.
+    Accent = Color3.fromRGB(92, 82, 222),
+    AccentSoft = Color3.fromRGB(235, 232, 255),
+    AccentDeep = Color3.fromRGB(69, 59, 168),
+    AccentInk = Color3.fromRGB(255, 255, 255),
+    Background = Color3.fromRGB(245, 243, 239),
+    Surface = Color3.fromRGB(255, 255, 255),
+    Surface2 = Color3.fromRGB(251, 250, 247),
+    Surface3 = Color3.fromRGB(239, 237, 244),
+    Border = Color3.fromRGB(211, 208, 217),
+    BorderSoft = Color3.fromRGB(229, 226, 220),
+    Text = Color3.fromRGB(30, 34, 45),
+    Text2 = Color3.fromRGB(91, 94, 106),
+    Muted = Color3.fromRGB(139, 140, 149),
     White = Color3.fromRGB(255, 255, 255),
-    Success = Color3.fromRGB(110, 224, 158),
-    Warning = Color3.fromRGB(240, 182, 62),
-    Error = Color3.fromRGB(240, 92, 82),
-    Dim = Color3.fromRGB(4, 5, 6),
-    DimTransparency = 0.42,
+    Success = Color3.fromRGB(38, 158, 103),
+    Warning = Color3.fromRGB(222, 153, 44),
+    Error = Color3.fromRGB(212, 80, 89),
+    -- A LIGHT veil, not the old dark dimmer.
+    Dim = Color3.fromRGB(250, 249, 246),
+    DimTransparency = 0.92,
 }
 
 -- Monospace is the backbone of the SIGNAL identity.
-Library.FontFamily = "rbxasset://fonts/families/RobotoMono.json"
+Library.FontFamily = "rbxasset://fonts/families/BuilderSans.json"
 
 Library.Config = {
     MobileBreakpoint = 560,
-    DesktopWidth = 600,
-    DesktopHeight = 410,
-    MobileWidth = 0.92,
-    MobileHeight = 0.80,
-    Animation = 0.14,
-    SpringAnimation = 0.30,
-    SnapAnimation = 0.09,
+    DesktopWidth = 612,
+    DesktopHeight = 424,
+    MobileWidth = 0.94,
+    MobileHeight = 0.84,
+    Animation = 0.13,
+    SpringAnimation = 0.24,
+    SnapAnimation = 0.08,
     TapThreshold = 12, -- px of travel before a touch counts as a drag
 }
 
@@ -377,7 +379,7 @@ local function ensureNotifications()
     end
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 6)
+    layout.Padding = UDim.new(0, 7)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
     layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
     layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -473,16 +475,19 @@ function Library:CreateWindow(titleText, accentColor)
     ScreenGui.ResetOnSpawn = false
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.DisplayOrder = 100
     ScreenGui.Parent = guiParent
     windowMaid:Add(ScreenGui)
 
-    local Dimmer = Instance.new("TextButton")
+    -- NON-INTERACTIVE veil. A full-screen TextButton would sink touch/input
+    -- across the entire display and make the underlying game's buttons feel
+    -- "dead". This is intentionally a Frame with no input sink.
+    local Dimmer = Instance.new("Frame")
+    Dimmer.Name = "Veil"
     Dimmer.Size = UDim2.fromScale(1, 1)
     Dimmer.BackgroundColor3 = Library.Theme.Dim
     Dimmer.BackgroundTransparency = 1
     Dimmer.BorderSizePixel = 0
-    Dimmer.Text = ""
-    Dimmer.AutoButtonColor = false
     Dimmer.ZIndex = 1
     Dimmer.Parent = ScreenGui
 
@@ -495,7 +500,7 @@ function Library:CreateWindow(titleText, accentColor)
     Main.BackgroundTransparency = 0
     Main.BorderSizePixel = 0
     Main.ClipsDescendants = true
-    Main.Active = true -- [FIX-4] sink touches so dragging never moves the camera
+    Main.Active = true -- only the actual window surface sinks to 3D while dragging
     Main.ZIndex = 10
     Main.Parent = ScreenGui
     local MainCorner = addCorner(Main, 4)
@@ -504,8 +509,8 @@ function Library:CreateWindow(titleText, accentColor)
     local MainGradient = Instance.new("UIGradient")
     MainGradient.Rotation = 90
     MainGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(19, 23, 27)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 15, 17)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(248, 247, 244)),
     })
     MainGradient.Parent = Main
 
@@ -574,6 +579,12 @@ function Library:CreateWindow(titleText, accentColor)
     end
 
     -- [FIX-5] Single responsive entry point: works collapsed AND open.
+    local Pages = {}
+    local TabButtons = {}
+    local CurrentPage
+
+    local refreshTabRail
+
     local updateLayoutMetrics -- declared below, assigned after layout exists
     local function fitToViewport()
         if not Main.Parent then return end
@@ -608,14 +619,17 @@ function Library:CreateWindow(titleText, accentColor)
         local vp = viewport()
         local bw = floatingSize()
         Main.Size = UDim2.new(0, bw, 0, bw)
-        floatingPosition = UDim2.fromOffset(math.max(10, vp.X - bw - 18), math.max(10, vp.Y - bw - 74))
+        -- Avoid the default mobile jump / virtual-stick corners. Start in a
+        -- reachable right-side middle position instead.
+        local startY = math.clamp(math.floor((vp.Y - bw) * 0.45), 64, math.max(64, vp.Y - bw - 64))
+        floatingPosition = UDim2.fromOffset(math.max(12, vp.X - bw - 18), startY)
         Main.Position = floatingPosition
     end
 
     -- Header
     local Header = Instance.new("Frame")
     Header.Name = "Header"
-    Header.Size = UDim2.new(1, 0, 0, 52)
+    Header.Size = UDim2.new(1, 0, 0, 58)
     Header.BackgroundTransparency = 1
     Header.BorderSizePixel = 0
     Header.ClipsDescendants = true
@@ -639,7 +653,7 @@ function Library:CreateWindow(titleText, accentColor)
     title.Size = UDim2.new(1, -50, 0, 24)
     title.TextYAlignment = Enum.TextYAlignment.Bottom
 
-    local headerMeta = createLabel(Brand, "QWQ // SIGNAL V9", 7, Library.Theme.Muted, Enum.FontWeight.Bold)
+    local headerMeta = createLabel(Brand, "QWQ / STUDIO UI", 7, Library.Theme.Muted, Enum.FontWeight.Bold)
     headerMeta.Position = UDim2.new(0, 40, 0, 30)
     headerMeta.Size = UDim2.new(1, -50, 0, 12)
     headerMeta.TextXAlignment = Enum.TextXAlignment.Left
@@ -673,7 +687,7 @@ function Library:CreateWindow(titleText, accentColor)
 
     local Sidebar = Instance.new("Frame")
     Sidebar.Name = "Sidebar"
-    Sidebar.Position = UDim2.new(0, 0, 0, 52)
+    Sidebar.Position = UDim2.new(0, 0, 0, 58)
     Sidebar.Size = UDim2.new(0, 148, 1, -52)
     Sidebar.BackgroundColor3 = Library.Theme.Background
     Sidebar.BackgroundTransparency = 0
@@ -700,7 +714,7 @@ function Library:CreateWindow(titleText, accentColor)
     tabsLayout.Padding = UDim.new(0, 3)
     tabsLayout.Parent = TabsScroll
     tabsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        TabsScroll.CanvasSize = UDim2.new(0, 0, 0, tabsLayout.AbsoluteContentSize.Y + 8)
+        refreshTabRail(isMobile())
     end)
 
     local Status = Instance.new("Frame")
@@ -727,32 +741,84 @@ function Library:CreateWindow(titleText, accentColor)
 
     local Body = Instance.new("Frame")
     Body.Name = "Body"
-    Body.Position = UDim2.new(0, 148, 0, 52)
-    Body.Size = UDim2.new(1, -148, 1, -52)
+    Body.Position = UDim2.new(0, 112, 0, 58)
+    Body.Size = UDim2.new(1, -112, 1, -58)
     Body.BackgroundTransparency = 1
     Body.ClipsDescendants = true
     Body.Parent = Content
 
+    local function refreshTabRail(compact)
+        tabsLayout.FillDirection = compact and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical
+        TabsScroll.ScrollingDirection = compact and Enum.ScrollingDirection.X or Enum.ScrollingDirection.Y
+        TabsScroll.ScrollBarThickness = 0
+        for i, record in ipairs(TabButtons) do
+            local b = record.button
+            if compact then
+                b.Size = UDim2.fromOffset(112, 38)
+                record.marker.Position = UDim2.new(0, 10, 1, -3)
+                record.marker.Size = UDim2.new(0, 24, 0, 2)
+                record.tabIndex.Position = UDim2.new(0, 10, 0, 3)
+                record.tabIndex.Size = UDim2.new(0, 18, 0, 11)
+                record.tabIndex.TextSize = 7
+                record.label.Position = UDim2.new(0, 10, 0, 15)
+                record.label.Size = UDim2.new(1, -18, 0, 18)
+            else
+                b.Size = UDim2.new(1, 0, 0, 42)
+                record.marker.Position = UDim2.new(0, 0, 0.5, -8)
+                record.marker.Size = UDim2.new(0, 2, 0, 16)
+                record.tabIndex.Position = UDim2.new(0, 10, 0, 0)
+                record.tabIndex.Size = UDim2.new(0, 18, 1, 0)
+                record.tabIndex.TextSize = 8
+                record.label.Position = UDim2.new(0, 32, 0, 0)
+                record.label.Size = UDim2.new(1, -40, 1, 0)
+            end
+        end
+        if compact then
+            local x = tabsLayout.AbsoluteContentSize.X + 10
+            TabsScroll.CanvasSize = UDim2.new(0, x, 0, 0)
+        else
+            local y = tabsLayout.AbsoluteContentSize.Y + 10
+            TabsScroll.CanvasSize = UDim2.new(0, 0, 0, y)
+        end
+    end
+
     updateLayoutMetrics = function()
         if not Content.Parent then return end
         local compact = isMobile()
-        local side = compact and 106 or 148
-        local headerHeight = compact and 48 or 52
+        local headerHeight = compact and 52 or 58
         Header.Size = UDim2.new(1, 0, 0, headerHeight)
-        Sidebar.Position = UDim2.new(0, 0, 0, headerHeight)
-        Sidebar.Size = UDim2.new(0, side, 1, -headerHeight)
-        TabsScroll.Position = UDim2.new(0, compact and 5 or 8, 0, 12)
-        TabsScroll.Size = UDim2.new(1, -(compact and 10 or 16), 1, -70)
-        Status.Position = UDim2.new(0, compact and 5 or 8, 1, -50)
-        Status.Size = UDim2.new(1, -(compact and 10 or 16), 0, 40)
-        Body.Position = UDim2.new(0, side, 0, headerHeight)
-        Body.Size = UDim2.new(1, -side, 1, -headerHeight)
+
+        if compact then
+            -- Mobile: tabs become a compact horizontal index strip. This keeps
+            -- the content wide enough for real controls instead of squeezing a
+            -- desktop sidebar onto a phone.
+            Sidebar.Position = UDim2.new(0, 0, 0, headerHeight)
+            Sidebar.Size = UDim2.new(1, 0, 0, 48)
+            Sidebar.BackgroundColor3 = Library.Theme.Surface
+            sidebarLine.Position = UDim2.new(0, 10, 1, -1)
+            sidebarLine.Size = UDim2.new(1, -20, 0, 1)
+            TabsScroll.Position = UDim2.new(0, 6, 0, 4)
+            TabsScroll.Size = UDim2.new(1, -12, 0, 40)
+            Status.Visible = false
+            Body.Position = UDim2.new(0, 0, 0, headerHeight + 48)
+            Body.Size = UDim2.new(1, 0, 1, -(headerHeight + 48))
+        else
+            local side = 112
+            Sidebar.Position = UDim2.new(0, 0, 0, headerHeight)
+            Sidebar.Size = UDim2.new(0, side, 1, -headerHeight)
+            Sidebar.BackgroundColor3 = Library.Theme.Background
+            sidebarLine.Position = UDim2.new(1, -1, 0, 12)
+            sidebarLine.Size = UDim2.new(0, 1, 1, -24)
+            TabsScroll.Position = UDim2.new(0, 7, 0, 12)
+            TabsScroll.Size = UDim2.new(1, -14, 1, -70)
+            Status.Visible = true
+            Body.Position = UDim2.new(0, side, 0, headerHeight)
+            Body.Size = UDim2.new(1, -side, 1, -headerHeight)
+        end
+
+        refreshTabRail(compact)
     end
     updateLayoutMetrics()
-
-    local Pages = {}
-    local TabButtons = {}
-    local CurrentPage
 
     local function selectTab(record)
         for _, item in ipairs(TabButtons) do
@@ -768,9 +834,12 @@ function Library:CreateWindow(titleText, accentColor)
                     TextColor3 = active and accent or Library.Theme.Muted,
                 })
             end
-            spring(item.marker, 0.25, {
+            local compact = isMobile()
+            spring(item.marker, 0.24, {
                 BackgroundTransparency = active and 0 or 1,
-                Size = active and UDim2.new(0, 2, 0, 20) or UDim2.new(0, 2, 0, 14),
+                Size = compact
+                    and (active and UDim2.new(0, 28, 0, 2) or UDim2.new(0, 14, 0, 2))
+                    or (active and UDim2.new(0, 2, 0, 20) or UDim2.new(0, 2, 0, 14)),
             })
             item.page.Visible = active
             if item.scrollRail then
@@ -783,42 +852,50 @@ function Library:CreateWindow(titleText, accentColor)
         CurrentPage = record
     end
 
-    -- Card: dark panel, hairline top edge, corner bracket accent.
+    -- Paper tile: white surface, a small editorial notch, and a quiet
+    -- right-side signal rail. No giant rounded pills, no industrial brackets.
     local cardIndex = 0
     local function makeCard(parent, height)
         cardIndex += 1
         local card = Instance.new("Frame")
         card.Size = UDim2.new(1, 0, 0, height)
-        surface(card, 2, { transparency = 0, strokeTransparency = 0.45 })
+        surface(card, 7, {
+            color = Library.Theme.Surface2,
+            strokeColor = Library.Theme.BorderSoft,
+            strokeTransparency = 0.10,
+        })
         card.Parent = parent
 
-        local bracketH = Instance.new("Frame")
-        bracketH.Name = "AccentMark"
-        bracketH.Size = UDim2.new(0, 8, 0, 2)
-        bracketH.Position = UDim2.new(0, 0, 0, 0)
-        bracketH.BackgroundColor3 = accent
-        bracketH.BackgroundTransparency = 0.45
-        bracketH.BorderSizePixel = 0
-        bracketH.Parent = card
-        local bracketV = Instance.new("Frame")
-        bracketV.Name = "AccentMark"
-        bracketV.Size = UDim2.new(0, 2, 0, 8)
-        bracketV.Position = UDim2.new(0, 0, 0, 0)
-        bracketV.BackgroundColor3 = accent
-        bracketV.BackgroundTransparency = 0.45
-        bracketV.BorderSizePixel = 0
-        bracketV.Parent = card
+        local notch = Instance.new("Frame")
+        notch.Name = "AccentMark"
+        notch.Size = UDim2.new(0, 24, 0, 3)
+        notch.Position = UDim2.new(0, 12, 0, 0)
+        notch.BackgroundColor3 = accent
+        notch.BackgroundTransparency = 0.18
+        notch.BorderSizePixel = 0
+        notch.Parent = card
+
+        local dot = Instance.new("Frame")
+        dot.Name = "AccentMark"
+        dot.Size = UDim2.new(0, 5, 0, 5)
+        dot.Position = UDim2.new(1, -15, 0, 10)
+        dot.BackgroundColor3 = accent
+        dot.BackgroundTransparency = 0.35
+        dot.BorderSizePixel = 0
+        addCorner(dot, 2)
+        dot.Parent = card
 
         local edge = Instance.new("Frame")
         edge.Name = "CardEdge"
-        edge.Size = UDim2.new(1, -18, 0, 1)
-        edge.Position = UDim2.new(0, 9, 0, 0)
+        edge.AnchorPoint = Vector2.new(1, 0.5)
+        edge.Position = UDim2.new(1, 0, 0.5, 0)
+        edge.Size = UDim2.new(0, 2, 0.55, 0)
         edge.BackgroundColor3 = accent
-        edge.BackgroundTransparency = 0.9
+        edge.BackgroundTransparency = 0.88
         edge.BorderSizePixel = 0
         edge.Parent = card
 
-        return card, { bracketH, bracketV }, edge
+        return card, { notch, dot }, edge
     end
 
     local function cardHover(hoverSource, brackets, edge)
@@ -936,11 +1013,16 @@ function Library:CreateWindow(titleText, accentColor)
                 tween(meta, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { TextColor3 = Library.Theme.Muted })
                 tween(bar, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = UDim2.new(0, 2, 0, 14), Position = UDim2.new(0, 12, 0.5, -7), BackgroundTransparency = 0.35 })
             end)
+            local pressScale = Instance.new("UIScale")
+            pressScale.Scale = 1
+            pressScale.Parent = card
             hit.MouseButton1Down:Connect(function()
-                tween(card, 0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.Surface3 })
+                tween(pressScale, 0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 0.985 })
+                tween(card, 0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.AccentSoft })
             end)
             hit.MouseButton1Up:Connect(function()
-                tween(card, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.Surface2 })
+                spring(pressScale, 0.18, { Scale = 1 })
+                tween(card, 0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundColor3 = Library.Theme.Surface2 })
             end)
             hit.Activated:Connect(function() safeCall(callback) end)
             return hit
@@ -962,35 +1044,42 @@ function Library:CreateWindow(titleText, accentColor)
             stateText.TextXAlignment = Enum.TextXAlignment.Right
 
             local switch = Instance.new("Frame")
-            switch.Size = UDim2.new(0, 46, 0, 20)
-            switch.Position = UDim2.new(1, -60, 0.5, -10)
+            switch.Size = UDim2.new(0, 50, 0, 22)
+            switch.Position = UDim2.new(1, -64, 0.5, -11)
             switch.BackgroundColor3 = Library.Theme.Surface3
             switch.BorderSizePixel = 0
             switch.Parent = card
-            addCorner(switch, 2)
+            addCorner(switch, 5)
             local switchStroke = addStroke(switch, Library.Theme.Border, 0.4)
+            local split = Instance.new("Frame")
+            split.Size = UDim2.new(0, 1, 0, 12)
+            split.Position = UDim2.new(0, 25, 0.5, -6)
+            split.BackgroundColor3 = Library.Theme.Border
+            split.BackgroundTransparency = 0.45
+            split.BorderSizePixel = 0
+            split.Parent = switch
 
             local block = Instance.new("Frame")
-            block.Size = UDim2.new(0, 14, 0, 14)
+            block.Size = UDim2.new(0, 16, 0, 16)
             block.AnchorPoint = Vector2.new(0, 0.5)
             block.Position = UDim2.new(0, 3, 0.5, 0)
             block.BackgroundColor3 = Library.Theme.Muted
             block.BorderSizePixel = 0
             block.Parent = switch
-            addCorner(block, 2)
+            addCorner(block, 4)
 
             cardHover(click, brackets, edge)
 
             local function render(instant)
                 local duration = instant and 0 or Library.Config.SpringAnimation
                 local style = instant and Enum.EasingStyle.Linear or Enum.EasingStyle.Back
-                local x = state and 29 or 3
+                local x = state and 31 or 3
                 tween(block, duration, style, Enum.EasingDirection.Out, {
                     Position = UDim2.new(0, x, 0.5, 0),
                     BackgroundColor3 = state and Library.Theme.AccentInk or Library.Theme.Muted,
                 })
                 tween(switch, duration, style, Enum.EasingDirection.Out, {
-                    BackgroundColor3 = state and accent or Library.Theme.Surface3,
+                    BackgroundColor3 = state and Library.Theme.AccentSoft or Library.Theme.Surface3,
                 })
                 tween(switchStroke, duration * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
                     Color = state and accent or Library.Theme.Border,
@@ -1027,7 +1116,7 @@ function Library:CreateWindow(titleText, accentColor)
 
             local track = Instance.new("Frame")
             track.Position = UDim2.new(0, 20, 0, 34)
-            track.Size = UDim2.new(1, -36, 0, 2)
+            track.Size = UDim2.new(1, -36, 0, 4)
             track.BackgroundColor3 = Library.Theme.Surface3
             track.BorderSizePixel = 0
             track.Parent = card
@@ -1038,16 +1127,16 @@ function Library:CreateWindow(titleText, accentColor)
             fill.BorderSizePixel = 0
             fill.Parent = track
             local knob = Instance.new("Frame")
-            knob.Size = UDim2.new(0, 10, 0, 10)
+            knob.Size = UDim2.new(0, 11, 0, 11)
             knob.AnchorPoint = Vector2.new(0.5, 0.5)
             knob.Position = UDim2.new((value - min) / (max - min), 0, 0.5, 0)
             knob.BackgroundColor3 = accent
             knob.BorderSizePixel = 0
             knob.ZIndex = 5
             knob.Parent = track
-            addCorner(knob, 2)
+            addCorner(knob, 3)
             local knobCore = Instance.new("Frame")
-            knobCore.Size = UDim2.new(0, 4, 0, 4)
+            knobCore.Size = UDim2.new(0, 3, 0, 3)
             knobCore.AnchorPoint = Vector2.new(0.5, 0.5)
             knobCore.Position = UDim2.fromScale(0.5, 0.5)
             knobCore.BackgroundColor3 = Library.Theme.AccentInk
@@ -1142,11 +1231,11 @@ function Library:CreateWindow(titleText, accentColor)
             label.Position = UDim2.new(0, 20, 0, 0)
             label.Size = UDim2.new(1, -120, 0, headerHeight)
             local valueLabel = createLabel(card, "SELECT", 8, Library.Theme.Muted, Enum.FontWeight.Bold)
-            valueLabel.Position = UDim2.new(1, -100, 0, 6)
+            valueLabel.Position = UDim2.new(1, -118, 0, 6)
             valueLabel.Size = UDim2.new(0, 64, 0, 10)
             valueLabel.TextXAlignment = Enum.TextXAlignment.Right
             local arrow = createLabel(card, "+", 14, Library.Theme.Text2, Enum.FontWeight.Bold)
-            arrow.Position = UDim2.new(1, -32, 0, 0)
+            arrow.Position = UDim2.new(1, -34, 0, 0)
             arrow.Size = UDim2.new(0, 20, 0, headerHeight)
             arrow.TextXAlignment = Enum.TextXAlignment.Center
             local line = Instance.new("Frame")
@@ -1247,7 +1336,7 @@ function Library:CreateWindow(titleText, accentColor)
             button.AutoButtonColor = false
             font(button, Enum.FontWeight.Bold)
             button.Parent = card
-            addCorner(button, 2)
+            addCorner(button, 7)
             local stroke = addStroke(button, Library.Theme.Border, 0.55)
             cardHover(button, brackets, edge)
             local function stopListening()
@@ -1411,7 +1500,7 @@ function Library:CreateWindow(titleText, accentColor)
         local scrollRail = Instance.new("Frame")
         scrollRail.Name = "ScrollRail"
         scrollRail.AnchorPoint = Vector2.new(1, 0)
-        scrollRail.Position = UDim2.new(1, -5, 0, 10)
+        scrollRail.Position = UDim2.new(1, -4, 0, 10)
         scrollRail.Size = UDim2.new(0, 2, 1, -20)
         scrollRail.BackgroundColor3 = Library.Theme.BorderSoft
         scrollRail.BackgroundTransparency = 0.3
@@ -1454,7 +1543,7 @@ function Library:CreateWindow(titleText, accentColor)
         page:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(updateScrollIndicator)
         scrollRail:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScrollIndicator)
 
-        addPadding(page, 12, 14, 12, 12)
+        addPadding(page, 10, 14, 12, 12)
         local layout = Instance.new("UIListLayout")
         layout.Padding = UDim.new(0, 6)
         layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -1464,8 +1553,8 @@ function Library:CreateWindow(titleText, accentColor)
         end)
 
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, 0, 0, 38)
-        button.BackgroundColor3 = Library.Theme.Surface2
+        button.Size = UDim2.new(1, 0, 0, 42)
+        button.BackgroundColor3 = Library.Theme.AccentSoft
         button.BackgroundTransparency = 1
         button.Text = ""
         button.AutoButtonColor = false
@@ -1520,6 +1609,7 @@ function Library:CreateWindow(titleText, accentColor)
         floatingPosition = Main.Position
         Bubble.Visible = false
         Main.BackgroundTransparency = 0
+        Dimmer.Visible = true
         local size = windowSize()
         tween(Dimmer, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = Library.Theme.DimTransparency })
         tween(MainStroke, 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = accent, Transparency = 0.55 })
@@ -1534,6 +1624,7 @@ function Library:CreateWindow(titleText, accentColor)
         transitioning = true
         Content.Visible = false
         tween(Dimmer, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = 1 })
+        task.delay(0.20, function() if Dimmer.Parent and not isOpen then Dimmer.Visible = false end end)
         tween(MainStroke, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Color = Library.Theme.Border, Transparency = 0.3 })
         local fs = floatingSize()
         floatingPosition = clampFloating(floatingPosition, Vector2.new(fs, fs))
@@ -1565,11 +1656,12 @@ function Library:CreateWindow(titleText, accentColor)
         if isOpen or closing or transitioning then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         clickStart = input.Position
-        dragStart = Main.Position
+        dragStart = Main.AbsolutePosition
         if not beginPointer(dragOwner, input, function(moveInput)
             local delta = moveInput.Position - clickStart
             local size = Main.AbsoluteSize
-            Main.Position = clampFloating(UDim2.fromOffset(dragStart.X.Offset + delta.X, dragStart.Y.Offset + delta.Y), size)
+            local target = UDim2.fromOffset(dragStart.X + delta.X, dragStart.Y + delta.Y)
+            Main.Position = clampFloating(target, size)
             floatingPosition = Main.Position
         end, function(endInput)
             if clickStart then
@@ -1598,13 +1690,13 @@ function Library:CreateWindow(titleText, accentColor)
         if not isOpen or closing or transitioning then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         local startInput = input.Position
-        local startPos = Main.Position
+        local startPos = Main.AbsolutePosition
         beginPointer(headerDragOwner, input, function(moveInput)
             local delta = moveInput.Position - startInput
             local vp = viewport()
             local sx, sy = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
-            local x = math.clamp(startPos.X.Offset + delta.X, 8, math.max(8, vp.X - sx - 8))
-            local y = math.clamp(startPos.Y.Offset + delta.Y, 8, math.max(8, vp.Y - sy - 8))
+            local x = math.clamp(startPos.X + delta.X, 8, math.max(8, vp.X - sx - 8))
+            local y = math.clamp(startPos.Y + delta.Y, 8, math.max(8, vp.Y - sy - 8))
             Main.Position = UDim2.fromOffset(x, y)
             floatingPosition = Main.Position
         end, function() end)
@@ -1694,7 +1786,7 @@ function Library:SetCustomFont(fontAssetId)
 end
 
 Library.Compatibility = {
-    Version = "8.x",
+    Version = "10.x",
     PreservesV4API = true,
     MobileFirst = true,
 }
