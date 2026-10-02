@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "16.0.0"
+Library.Version = "16.1.0"
 
 Library.Theme = {
     Accent = Color3.fromRGB(104, 122, 162),
@@ -542,6 +542,7 @@ function Library:CreateWindow(titleText, accentColor)
 
     local refreshTabRail
     local updateLayoutMetrics
+    local updateIndicatorPosition
 
     local function fitToViewport()
         if not Main.Parent then return end
@@ -732,7 +733,7 @@ function Library:CreateWindow(titleText, accentColor)
     Body.ZIndex = 12
     Body.Parent = Content
 
-    local function updateIndicatorPosition(animate)
+    updateIndicatorPosition = function(animate)
         if not CurrentPage or not CurrentPage.button or not CurrentPage.button.Parent then
             TabIndicator.Visible = false
             return
@@ -881,29 +882,24 @@ function Library:CreateWindow(titleText, accentColor)
 
             newPage.Position = UDim2.new(0, Library.Config.TabSlideOffset, 0, 0)
             newPage.Visible = true
-            newPage.GroupTransparency = 1
 
             tween(oldPage, Library.Config.TabSwitchDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                GroupTransparency = 1,
                 Position = UDim2.new(0, -Library.Config.TabSlideOffset, 0, 0),
             })
 
             tween(newPage, Library.Config.TabSwitchDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                GroupTransparency = 0,
                 Position = UDim2.new(0, 0, 0, 0),
             })
 
             task.delay(Library.Config.TabSwitchDuration, function()
                 if oldPage.Parent then
                     oldPage.Visible = false
-                    oldPage.GroupTransparency = 0
                     oldPage.Position = UDim2.new(0, 0, 0, 0)
                 end
             end)
         else
             local newPage = record.page
             newPage.Visible = true
-            newPage.GroupTransparency = 0
             newPage.Position = UDim2.new(0, 0, 0, 0)
         end
 
@@ -1978,7 +1974,6 @@ function Library:CreateWindow(titleText, accentColor)
         page.ElasticBehavior = Enum.ElasticBehavior.Never
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.Visible = false
-        page.GroupTransparency = 0
         page.Position = UDim2.new(0, 0, 0, 0)
         page.Parent = Body
 
