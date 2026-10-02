@@ -1,5 +1,5 @@
 --[[
-    QWQ UI Library V6
+    QWQ UI Library V7
     Rebuilt commercial-style mobile-first Roblox UI framework
     Focus: consistent design system, deterministic cleanup, touch-safe input,
     responsive layout, extensible component API.
@@ -13,26 +13,26 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "6.0.0"
+Library.Version = "7.0.0"
 Library.Theme = {
-    Accent = Color3.fromRGB(176, 137, 255),
-    AccentSoft = Color3.fromRGB(222, 214, 255),
-    AccentDeep = Color3.fromRGB(119, 86, 214),
-    Background = Color3.fromRGB(7, 8, 10),
-    Surface = Color3.fromRGB(13, 14, 17),
-    Surface2 = Color3.fromRGB(20, 21, 25),
-    Surface3 = Color3.fromRGB(27, 28, 33),
-    Border = Color3.fromRGB(48, 49, 55),
-    BorderSoft = Color3.fromRGB(34, 35, 40),
-    Text = Color3.fromRGB(242, 242, 239),
-    Text2 = Color3.fromRGB(153, 154, 158),
-    Muted = Color3.fromRGB(82, 84, 91),
+    Accent = Color3.fromRGB(244, 170, 72),
+    AccentSoft = Color3.fromRGB(255, 213, 145),
+    AccentDeep = Color3.fromRGB(183, 111, 36),
+    Background = Color3.fromRGB(7, 7, 6),
+    Surface = Color3.fromRGB(14, 14, 13),
+    Surface2 = Color3.fromRGB(20, 20, 18),
+    Surface3 = Color3.fromRGB(27, 27, 24),
+    Border = Color3.fromRGB(58, 56, 50),
+    BorderSoft = Color3.fromRGB(38, 37, 34),
+    Text = Color3.fromRGB(244, 242, 235),
+    Text2 = Color3.fromRGB(164, 161, 151),
+    Muted = Color3.fromRGB(92, 90, 83),
     White = Color3.fromRGB(255, 255, 255),
-    Success = Color3.fromRGB(94, 192, 132),
-    Warning = Color3.fromRGB(225, 167, 82),
-    Error = Color3.fromRGB(224, 91, 111),
-    Dim = Color3.fromRGB(2, 3, 5),
-    DimTransparency = 0.46,
+    Success = Color3.fromRGB(120, 192, 128),
+    Warning = Color3.fromRGB(244, 170, 72),
+    Error = Color3.fromRGB(222, 92, 82),
+    Dim = Color3.fromRGB(0, 0, 0),
+    DimTransparency = 0.52,
 }
 
 Library.FontFamily = "rbxasset://fonts/families/BuilderSans.json"
@@ -42,9 +42,9 @@ Library.Config = {
     DesktopHeight = 410,
     MobileWidth = 0.95,
     MobileHeight = 0.88,
-    Animation = 0.16,
-    SpringAnimation = 0.34,
-    SnapAnimation = 0.11,
+    Animation = 0.14,
+    SpringAnimation = 0.30,
+    SnapAnimation = 0.09,
 }
 
 local function parentGui()
@@ -169,30 +169,36 @@ local function Maid()
     return self
 end
 
--- One global pointer, but ownership is explicit. A slider cannot steal a window drag.
-local Pointer = { owner = nil, move = nil, ended = nil }
+-- Input ownership is explicit, but each drag tracks its initiating input.
+-- This avoids mouse/touch crossover and prevents a slider or window from stealing a drag.
+local Pointer = { owner = nil, input = nil, move = nil, ended = nil }
 local pointerMoveConn = UserInputService.InputChanged:Connect(function(input)
-    if Pointer.owner and Pointer.move and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    if not Pointer.owner then return end
+    if Pointer.input and input.UserInputType == Enum.UserInputType.MouseMovement then
+        Pointer.move(input)
+    elseif Pointer.input and input == Pointer.input then
         Pointer.move(input)
     end
 end)
 local pointerEndConn = UserInputService.InputEnded:Connect(function(input)
-    if Pointer.owner and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+    if not Pointer.owner then return end
+    local matches = input == Pointer.input or input.UserInputType == Enum.UserInputType.MouseButton1
+    if matches then
         local ended = Pointer.ended
-        Pointer.owner, Pointer.move, Pointer.ended = nil, nil, nil
+        Pointer.owner, Pointer.input, Pointer.move, Pointer.ended = nil, nil, nil, nil
         if ended then pcall(ended, input) end
     end
 end)
 
-local function beginPointer(owner, move, ended)
+local function beginPointer(owner, input, move, ended)
     if Pointer.owner then return false end
-    Pointer.owner, Pointer.move, Pointer.ended = owner, move, ended
+    Pointer.owner, Pointer.input, Pointer.move, Pointer.ended = owner, input, move, ended
     return true
 end
 
 local function endPointer(owner)
     if Pointer.owner == owner then
-        Pointer.owner, Pointer.move, Pointer.ended = nil, nil, nil
+        Pointer.owner, Pointer.input, Pointer.move, Pointer.ended = nil, nil, nil, nil
     end
 end
 
@@ -204,7 +210,7 @@ local function surface(object, radius, opts)
     object.BackgroundColor3 = opts.color or Library.Theme.Surface
     object.BackgroundTransparency = opts.transparency == nil and 0.04 or opts.transparency
     object.BorderSizePixel = 0
-    addCorner(object, radius or 4)
+    addCorner(object, radius or 3)
     if opts.stroke ~= false then
         addStroke(object, opts.strokeColor or Library.Theme.BorderSoft, opts.strokeTransparency == nil and 0.42 or opts.strokeTransparency, opts.strokeThickness or 1)
     end
@@ -363,8 +369,8 @@ function Library:CreateWindow(titleText, accentColor)
     Main.ClipsDescendants = true
     Main.ZIndex = 10
     Main.Parent = ScreenGui
-    local MainCorner = addCorner(Main, 28)
-    local MainStroke = addStroke(Main, accent, 0.5)
+    local MainCorner = addCorner(Main, 7)
+    local MainStroke = addStroke(Main, Library.Theme.Border, 0.22)
 
     local UIScale = Instance.new("UIScale")
     UIScale.Scale = 1
@@ -379,38 +385,39 @@ function Library:CreateWindow(titleText, accentColor)
     bubbleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     bubbleLayout.Parent = Bubble
     local BubbleMark = Instance.new("Frame")
-    BubbleMark.Size = UDim2.new(0, 24, 0, 24)
+    BubbleMark.Size = UDim2.new(0, 26, 0, 26)
     BubbleMark.BackgroundTransparency = 1
     BubbleMark.Parent = Bubble
     local markA = Instance.new("Frame")
-    markA.Size = UDim2.new(0, 15, 0, 2)
-    markA.Position = UDim2.new(0, 4, 0, 6)
-    markA.BackgroundColor3 = accent
+    markA.Size = UDim2.new(0, 18, 0, 3)
+    markA.Position = UDim2.new(0, 4, 0, 5)
+    markA.BackgroundColor3 = Library.Theme.Text
     markA.BorderSizePixel = 0
     markA.Parent = BubbleMark
     local markB = Instance.new("Frame")
-    markB.Size = UDim2.new(0, 9, 0, 2)
-    markB.Position = UDim2.new(0, 4, 0, 12)
-    markB.BackgroundColor3 = Library.Theme.Text
+    markB.Size = UDim2.new(0, 10, 0, 3)
+    markB.Position = UDim2.new(0, 4, 0, 11)
+    markB.BackgroundColor3 = accent
     markB.BorderSizePixel = 0
     markB.Parent = BubbleMark
     local markC = Instance.new("Frame")
-    markC.Size = UDim2.new(0, 4, 0, 2)
-    markC.Position = UDim2.new(0, 4, 0, 18)
-    markC.BackgroundColor3 = accent
+    markC.Size = UDim2.new(0, 18, 0, 3)
+    markC.Position = UDim2.new(0, 4, 0, 17)
+    markC.BackgroundColor3 = Library.Theme.Text
     markC.BorderSizePixel = 0
     markC.Parent = BubbleMark
 
     local Content = Instance.new("Frame")
     Content.Size = UDim2.fromScale(1, 1)
     Content.BackgroundTransparency = 1
+    Content.ClipsDescendants = true
     Content.Visible = false
     Content.Parent = Main
 
     local isOpen = false
     local closing = false
     local transitioning = false
-    local floatingPosition = UDim2.fromScale(0.92, 0.78)
+    local floatingPosition = UDim2.fromOffset(0, 0)
 
     local function isMobile()
         local camera = workspace.CurrentCamera
@@ -429,6 +436,13 @@ function Library:CreateWindow(titleText, accentColor)
     local cameraConn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() task.defer(updateResponsive) end)
     windowMaid:Add(cameraConn)
     updateResponsive()
+    do
+        local camera = workspace.CurrentCamera
+        local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+        local bw = isMobile() and 52 or 56
+        floatingPosition = UDim2.fromOffset(math.max(10, vp.X - bw - 18), math.max(10, vp.Y - bw - 74))
+        Main.Position = floatingPosition
+    end
 
     local function windowSize()
         local camera = workspace.CurrentCamera
@@ -444,14 +458,15 @@ function Library:CreateWindow(titleText, accentColor)
     -- Header
     local Header = Instance.new("Frame")
     Header.Name = "Header"
-    Header.Size = UDim2.new(1, 0, 0, 60)
+    Header.Size = UDim2.new(1, 0, 0, 58)
     Header.BackgroundColor3 = Library.Theme.Surface
     Header.BackgroundTransparency = 0.0
     Header.BorderSizePixel = 0
+    Header.ClipsDescendants = true
     Header.Parent = Content
     local headerLine = Instance.new("Frame")
-    headerLine.Position = UDim2.new(0, 14, 1, -1)
-    headerLine.Size = UDim2.new(1, -28, 0, 1)
+    headerLine.Position = UDim2.new(0, 12, 1, -1)
+    headerLine.Size = UDim2.new(1, -24, 0, 1)
     headerLine.BackgroundColor3 = Library.Theme.Border
     headerLine.BorderSizePixel = 0
     headerLine.Parent = Header
@@ -506,6 +521,7 @@ function Library:CreateWindow(titleText, accentColor)
     Sidebar.Position = UDim2.new(0, 0, 0, 58)
     Sidebar.Size = UDim2.new(0, 144, 1, -58)
     Sidebar.BackgroundTransparency = 1
+    Sidebar.ClipsDescendants = true
     Sidebar.Parent = Content
 
     local TabsScroll = Instance.new("ScrollingFrame")
@@ -515,6 +531,7 @@ function Library:CreateWindow(titleText, accentColor)
     TabsScroll.BorderSizePixel = 0
     TabsScroll.ScrollBarThickness = 0
     TabsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabsScroll.ClipsDescendants = true
     TabsScroll.Parent = Sidebar
     local tabsLayout = Instance.new("UIListLayout")
     tabsLayout.Padding = UDim.new(0, 3)
@@ -529,7 +546,7 @@ function Library:CreateWindow(titleText, accentColor)
     Status.BackgroundColor3 = Library.Theme.Surface2
     Status.BackgroundTransparency = 0.25
     Status.Parent = Sidebar
-    addCorner(Status, 3)
+    addCorner(Status, 2)
     addStroke(Status, Library.Theme.Border, 0.75)
     local statusLabel = createLabel(Status, "ONLINE", 9, accent, Enum.FontWeight.Bold)
     statusLabel.Position = UDim2.new(0, 9, 0, 4)
@@ -544,6 +561,7 @@ function Library:CreateWindow(titleText, accentColor)
     Body.Position = UDim2.new(0, 144, 0, 58)
     Body.Size = UDim2.new(1, -144, 1, -58)
     Body.BackgroundTransparency = 1
+    Body.ClipsDescendants = true
     Body.Parent = Content
 
     local cameraResponsive = workspace.CurrentCamera
@@ -615,7 +633,7 @@ function Library:CreateWindow(titleText, accentColor)
         cardIndex += 1
         local card = Instance.new("Frame")
         card.Size = UDim2.new(1, 0, 0, height)
-        surface(card, 4, {transparency = 0.02, strokeTransparency = 0.48})
+        surface(card, 2, {transparency = 0.01, strokeTransparency = 0.38})
         card.Parent = parent
 
         local index = createLabel(card, string.format("%02d", cardIndex), 7, Library.Theme.Muted, Enum.FontWeight.Bold)
@@ -629,7 +647,7 @@ function Library:CreateWindow(titleText, accentColor)
         rail.Position = UDim2.new(0, 0, 0, 5)
         rail.Size = UDim2.new(0, 2, 1, -10)
         rail.BackgroundColor3 = accent
-        rail.BackgroundTransparency = 0.88
+        rail.BackgroundTransparency = 0.82
         rail.BorderSizePixel = 0
         rail.Parent = card
         addCorner(rail, 1)
@@ -738,10 +756,10 @@ function Library:CreateWindow(titleText, accentColor)
                 tween(meta, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {TextColor3 = Library.Theme.Muted})
             end)
             hit.MouseButton1Down:Connect(function()
-                spring(b, 0.18, {Size = UDim2.new(1, -2, 0, 40)})
+                tween(b, 0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 0.00})
             end)
             hit.MouseButton1Up:Connect(function()
-                spring(b, 0.24, {Size = UDim2.new(1, 0, 0, 40)})
+                tween(b, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 0.02})
             end)
             hit.Activated:Connect(function() safeCall(callback) end)
             return hit
@@ -886,7 +904,7 @@ function Library:CreateWindow(titleText, accentColor)
             end
             track.InputBegan:Connect(function(input)
                 if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-                    if beginPointer(owner,update,function() end) then update(input) end
+                    if beginPointer(owner, input, update, function() end) then update(input) end
                 end
             end)
             return {Get=function() return value end,Set=function(_,v) setValue(v,true) end}
@@ -977,7 +995,7 @@ function Library:CreateWindow(titleText, accentColor)
             button.AutoButtonColor = false
             font(button, Enum.FontWeight.Bold)
             button.Parent = card
-            addCorner(button, 3)
+            addCorner(button, 2)
             local stroke = addStroke(button, Library.Theme.Border, 0.7)
             local function stopListening()
                 listening = false
@@ -1117,10 +1135,10 @@ function Library:CreateWindow(titleText, accentColor)
         page.Size = UDim2.fromScale(1, 1)
         page.BackgroundTransparency = 1
         page.BorderSizePixel = 0
-        -- Native scrollbar is hidden. V6 uses a deliberately designed micro-scroll rail
+        -- Native scrollbar is hidden. V7 uses a deliberately designed micro-scroll rail
         -- so the scrollbar belongs to the library instead of looking like Roblox default UI.
         page.ScrollBarThickness = 0
-        page.ElasticBehavior = Enum.ElasticBehavior.Always
+        page.ElasticBehavior = Enum.ElasticBehavior.Never
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.Visible = false
         page.Parent = Body
@@ -1128,8 +1146,8 @@ function Library:CreateWindow(titleText, accentColor)
         local scrollRail = Instance.new("Frame")
         scrollRail.Name = "ScrollRail"
         scrollRail.AnchorPoint = Vector2.new(1, 0)
-        scrollRail.Position = UDim2.new(1, -3, 0, 11)
-        scrollRail.Size = UDim2.new(0, 2, 1, -22)
+        scrollRail.Position = UDim2.new(1, -5, 0, 10)
+        scrollRail.Size = UDim2.new(0, 2, 1, -20)
         scrollRail.BackgroundColor3 = Library.Theme.Border
         scrollRail.BackgroundTransparency = 0.72
         scrollRail.BorderSizePixel = 0
@@ -1183,13 +1201,13 @@ function Library:CreateWindow(titleText, accentColor)
         end)
 
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, 0, 0, 34)
+        button.Size = UDim2.new(1, 0, 0, 36)
         button.BackgroundColor3 = Library.Theme.Surface
         button.BackgroundTransparency = 1
         button.Text = ""
         button.AutoButtonColor = false
         button.Parent = TabsScroll
-        addCorner(button, 3)
+        addCorner(button, 2)
         local marker = Instance.new("Frame")
         marker.Size = UDim2.new(0, 2, 0, 20)
         marker.Position = UDim2.new(0, 0, 0.5, -10)
@@ -1240,7 +1258,7 @@ function Library:CreateWindow(titleText, accentColor)
         transitioning = true
         Content.Visible = false
         tween(Dimmer, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 1})
-        spring(MainCorner, 0.32, {CornerRadius = UDim.new(0, 28)}, Enum.EasingDirection.In)
+        spring(MainCorner, 0.30, {CornerRadius = UDim.new(0, 7)}, Enum.EasingDirection.In)
         local t = spring(Main, 0.40, {Size = UDim2.new(0, 56, 0, 56), Position = floatingPosition}, Enum.EasingDirection.In)
         if t then t.Completed:Connect(function() transitioning = false Bubble.Visible = true end) end
     end)
@@ -1269,36 +1287,45 @@ function Library:CreateWindow(titleText, accentColor)
         MainStroke.Transparency = 0.5
         local size = windowSize()
         tween(Dimmer, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = Library.Theme.DimTransparency})
-        spring(MainCorner, 0.36, {CornerRadius = UDim.new(0, 8)})
+        spring(MainCorner, 0.30, {CornerRadius = UDim.new(0, 7)})
         local t = spring(Main, 0.46, {Size = size, Position = UDim2.fromScale(0.5, 0.5)})
         if t then t.Completed:Connect(function() Content.Visible = true transitioning = false end) end
     end
 
-    -- Bubble drag/click. Drag ownership is independent from sliders.
+    -- Floating button: tap opens; a real drag moves it. Movement is clamped continuously.
     local dragOwner = {}
     local clickStart
+    local dragStart
     Main.InputBegan:Connect(function(input)
-        if isOpen or closing then return end
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            clickStart = input.Position
-            local start = Main.Position
-            beginPointer(dragOwner, function(moveInput)
-                local delta = moveInput.Position - clickStart
-                Main.Position = UDim2.new(start.X.Scale, start.X.Offset + delta.X, start.Y.Scale, start.Y.Offset + delta.Y)
-            end, function(endInput)
-                if clickStart and (endInput.Position - clickStart).Magnitude < 7 then openWindow() else
-                    local camera = workspace.CurrentCamera
-                    local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
-                    local p = Main.AbsolutePosition
-                    local s = Main.AbsoluteSize
-                    local cx = p.X + s.X/2
-                    local tx = cx < vp.X/2 and 12 or vp.X - s.X - 12
-                    local ty = math.clamp(p.Y, 12, vp.Y - s.Y - 12)
-                    floatingPosition = UDim2.new(0, tx, 0, ty)
-                    tween(Main, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Position = floatingPosition})
-                end
-                clickStart = nil
-            end)
+        if isOpen or closing or transitioning then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        clickStart = input.Position
+        dragStart = Main.Position
+        if not beginPointer(dragOwner, input, function(moveInput)
+            local delta = moveInput.Position - clickStart
+            local camera = workspace.CurrentCamera
+            local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+            local sx, sy = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
+            local x = math.clamp((dragStart.X.Scale * vp.X) + dragStart.X.Offset + delta.X, 10, vp.X - sx - 10)
+            local y = math.clamp((dragStart.Y.Scale * vp.Y) + dragStart.Y.Offset + delta.Y, 10, vp.Y - sy - 10)
+            Main.Position = UDim2.fromOffset(x, y)
+        end, function(endInput)
+            local moved = (endInput.Position - clickStart).Magnitude
+            if moved < 8 then
+                openWindow()
+            else
+                local camera = workspace.CurrentCamera
+                local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+                local p = Main.AbsolutePosition
+                local s = Main.AbsoluteSize
+                local x = math.clamp(p.X, 10, vp.X - s.X - 10)
+                local y = math.clamp(p.Y, 10, vp.Y - s.Y - 10)
+                floatingPosition = UDim2.fromOffset(x, y)
+                snap(Main, {Position = floatingPosition})
+            end
+            clickStart, dragStart = nil, nil
+        end) then
+            clickStart, dragStart = nil, nil
         end
     end)
 
@@ -1318,9 +1345,14 @@ function Library:CreateWindow(titleText, accentColor)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local startInput = input.Position
             local startPos = Main.Position
-            beginPointer(headerDragOwner, function(moveInput)
+            beginPointer(headerDragOwner, input, function(moveInput)
                 local delta = moveInput.Position - startInput
-                Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                local camera = workspace.CurrentCamera
+                local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
+                local sx, sy = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
+                local x = math.clamp((startPos.X.Scale * vp.X) + startPos.X.Offset + delta.X, 8, vp.X - sx - 8)
+                local y = math.clamp((startPos.Y.Scale * vp.Y) + startPos.Y.Offset + delta.Y, 8, vp.Y - sy - 8)
+                Main.Position = UDim2.fromOffset(x, y)
             end, function() end)
         end
     end)
@@ -1345,7 +1377,7 @@ function Library:CreateWindow(titleText, accentColor)
             isOpen = false
             transitioning = true
             Content.Visible = false
-            tween(Dimmer, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 1})
+            tween(Dimmer, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {BackgroundTransparency = 1})
             local t = spring(Main, 0.34, {Size = UDim2.new(0, 56, 0, 56), Position = floatingPosition}, Enum.EasingDirection.In)
             if t then t.Completed:Connect(function() transitioning = false Bubble.Visible = true end) end
         end
@@ -1363,23 +1395,30 @@ function Library:CreateWindow(titleText, accentColor)
         for _, item in ipairs(TabButtons) do table.insert(out, item.name) end
         return out
     end
-    function Window:Destroy() if not closing then closing = true end windowMaid:Destroy() end
+    function Window:Destroy()
+        if not closing then closing = true end
+        endPointer(dragOwner)
+        endPointer(headerDragOwner)
+        windowMaid:Destroy()
+    end
     function Window:GetScreenGui() return ScreenGui end
     function Window:SetStatus(text) statusLabel.Text = tostring(text) end
     function Window:SetAccent(color)
         if typeof(color) ~= "Color3" then return end
         accent = color
         Library.Theme.Accent = color
-        MainStroke.Color = color
+        MainStroke.Color = Library.Theme.Border
         dot.BackgroundColor3 = color
-        markA.BackgroundColor3 = color
-        markC.BackgroundColor3 = color
+        markB.BackgroundColor3 = color
         statusLabel.TextColor3 = color
         for _, item in ipairs(TabButtons) do
             if item.marker then item.marker.BackgroundColor3 = color end
+            if item.tabIndex then
+                item.tabIndex.TextColor3 = item == CurrentPage and color or Library.Theme.Muted
+            end
         end
         for _, obj in ipairs(ScreenGui:GetDescendants()) do
-            if obj.Name == "AccentRail" or obj.Name == "ActiveRail" then
+            if obj.Name == "AccentRail" or obj.Name == "ActiveRail" or obj.Name == "ScrollThumb" then
                 obj.BackgroundColor3 = color
             elseif obj.Name == "Indicator" then
                 local stroke = obj:FindFirstChildOfClass("UIStroke")
@@ -1415,7 +1454,7 @@ function Library:SetCustomFont(fontAssetId)
 end
 
 Library.Compatibility = {
-    Version = "6.x",
+    Version = "7.x",
     PreservesV4API = true,
     MobileFirst = true,
 }
