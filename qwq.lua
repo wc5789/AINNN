@@ -1,6 +1,6 @@
 --[[
-    QWQ UI Library V2
-    Commercial-style mobile-first Roblox UI framework
+    QWQ UI Library V5
+    Rebuilt commercial-style mobile-first Roblox UI framework
     Focus: consistent design system, deterministic cleanup, touch-safe input,
     responsive layout, extensible component API.
 ]]
@@ -13,34 +13,34 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-Library.Version = "4.0.0"
+Library.Version = "5.0.0"
 Library.Theme = {
     Accent = Color3.fromRGB(154, 112, 255),
-    AccentSoft = Color3.fromRGB(226, 216, 255),
-    AccentDeep = Color3.fromRGB(108, 72, 190),
-    Background = Color3.fromRGB(13, 14, 18),
-    Surface = Color3.fromRGB(20, 21, 27),
-    Surface2 = Color3.fromRGB(27, 28, 36),
-    Border = Color3.fromRGB(51, 52, 63),
+    AccentSoft = Color3.fromRGB(211, 202, 255),
+    AccentDeep = Color3.fromRGB(113, 82, 205),
+    Background = Color3.fromRGB(9, 10, 13),
+    Surface = Color3.fromRGB(16, 17, 22),
+    Surface2 = Color3.fromRGB(23, 24, 31),
+    Border = Color3.fromRGB(43, 44, 53),
     Text = Color3.fromRGB(239, 239, 244),
-    Text2 = Color3.fromRGB(158, 159, 171),
-    Muted = Color3.fromRGB(103, 105, 119),
+    Text2 = Color3.fromRGB(146, 148, 160),
+    Muted = Color3.fromRGB(91, 94, 108),
     White = Color3.fromRGB(255, 255, 255),
     Success = Color3.fromRGB(72, 174, 119),
     Warning = Color3.fromRGB(219, 153, 67),
     Error = Color3.fromRGB(213, 83, 105),
     Dim = Color3.fromRGB(5, 6, 9),
-    DimTransparency = 0.36,
+    DimTransparency = 0.42,
 }
 
 Library.FontFamily = "rbxasset://fonts/families/BuilderSans.json"
 Library.Config = {
     MobileBreakpoint = 560,
-    DesktopWidth = 540,
-    DesktopHeight = 370,
-    MobileWidth = 0.94,
-    MobileHeight = 0.84,
-    Animation = 0.18,
+    DesktopWidth = 600,
+    DesktopHeight = 410,
+    MobileWidth = 0.95,
+    MobileHeight = 0.88,
+    Animation = 0.16,
 }
 
 local function parentGui()
@@ -259,14 +259,14 @@ local function makeNotification(title, message, duration, kind)
     local accent = colors[kind] or colors.info
 
     local toast = Instance.new("Frame")
-    toast.Size = UDim2.new(1, 0, 0, 64)
+    toast.Size = UDim2.new(1, 0, 0, 60)
     toast.BackgroundColor3 = Library.Theme.Surface
     toast.BackgroundTransparency = 1
     toast.BorderSizePixel = 0
     toast.ClipsDescendants = true
     toast.LayoutOrder = os.clock() * 1000
     toast.Parent = list
-    addCorner(toast, 12)
+    addCorner(toast, 8)
     local stroke = addStroke(toast, accent, 0.72)
 
     local bar = Instance.new("Frame")
@@ -429,7 +429,7 @@ function Library:CreateWindow(titleText, accentColor)
     -- Header
     local Header = Instance.new("Frame")
     Header.Name = "Header"
-    Header.Size = UDim2.new(1, 0, 0, 54)
+    Header.Size = UDim2.new(1, 0, 0, 58)
     Header.BackgroundColor3 = Library.Theme.Surface
     Header.BackgroundTransparency = 0.0
     Header.BorderSizePixel = 0
@@ -482,8 +482,8 @@ function Library:CreateWindow(titleText, accentColor)
 
     local Sidebar = Instance.new("Frame")
     Sidebar.Name = "Sidebar"
-    Sidebar.Position = UDim2.new(0, 0, 0, 54)
-    Sidebar.Size = UDim2.new(0, 132, 1, -54)
+    Sidebar.Position = UDim2.new(0, 0, 0, 58)
+    Sidebar.Size = UDim2.new(0, 144, 1, -58)
     Sidebar.BackgroundTransparency = 1
     Sidebar.Parent = Content
 
@@ -510,12 +510,20 @@ function Library:CreateWindow(titleText, accentColor)
     Status.Parent = Sidebar
     addCorner(Status, 10)
     addStroke(Status, Library.Theme.Border, 0.75)
-    local statusLabel = createLabel(Status, "READY", 9, accent, Enum.FontWeight.Bold)
+    local statusLabel = createLabel(Status, "ONLINE", 9, accent, Enum.FontWeight.Bold)
     statusLabel.Position = UDim2.new(0, 11, 0, 4)
     statusLabel.Size = UDim2.new(1, -22, 0, 14)
     local fpsLabel = createLabel(Status, "-- FPS", 9, Library.Theme.Muted, Enum.FontWeight.Medium)
     fpsLabel.Position = UDim2.new(0, 11, 0, 20)
     fpsLabel.Size = UDim2.new(1, -22, 0, 14)
+
+    -- Layout is declared before the responsive pass. V4 could touch Body before it existed.
+    local Body = Instance.new("Frame")
+    Body.Name = "Body"
+    Body.Position = UDim2.new(0, 144, 0, 58)
+    Body.Size = UDim2.new(1, -144, 1, -58)
+    Body.BackgroundTransparency = 1
+    Body.Parent = Content
 
     local cameraResponsive = workspace.CurrentCamera
     local function updateLayoutMetrics()
@@ -523,24 +531,30 @@ function Library:CreateWindow(titleText, accentColor)
         local camera = workspace.CurrentCamera
         local vp = camera and camera.ViewportSize or Vector2.new(800, 600)
         local compact = vp.X < Library.Config.MobileBreakpoint
-        local side = compact and 96 or 132
-        Sidebar.Size = UDim2.new(0, side, 1, -54)
-        TabsScroll.Position = UDim2.new(0, compact and 7 or 10, 0, 10)
-        TabsScroll.Size = UDim2.new(1, -(compact and 14 or 20), 1, -66)
-        Status.Position = UDim2.new(0, compact and 7 or 10, 1, -50)
-        Status.Size = UDim2.new(1, -(compact and 14 or 20), 0, 38)
-        Body.Position = UDim2.new(0, side, 0, 54)
-        Body.Size = UDim2.new(1, -side, 1, -54)
+        local side = compact and 92 or 144
+        local headerHeight = compact and 54 or 58
+        Sidebar.Position = UDim2.new(0, 0, 0, headerHeight)
+        Sidebar.Size = UDim2.new(0, side, 1, -headerHeight)
+        TabsScroll.Position = UDim2.new(0, compact and 6 or 10, 0, 10)
+        TabsScroll.Size = UDim2.new(1, -(compact and 12 or 20), 1, -64)
+        Status.Position = UDim2.new(0, compact and 6 or 10, 1, -48)
+        Status.Size = UDim2.new(1, -(compact and 12 or 20), 0, 38)
+        Body.Position = UDim2.new(0, side, 0, headerHeight)
+        Body.Size = UDim2.new(1, -side, 1, -headerHeight)
     end
     updateLayoutMetrics()
-    if cameraResponsive then windowMaid:Add(cameraResponsive:GetPropertyChangedSignal("ViewportSize"):Connect(updateLayoutMetrics)) end
-
-    local Body = Instance.new("Frame")
-    Body.Name = "Body"
-    Body.Position = UDim2.new(0, 132, 0, 54)
-    Body.Size = UDim2.new(1, -132, 1, -54)
-    Body.BackgroundTransparency = 1
-    Body.Parent = Content
+    if cameraResponsive then
+        windowMaid:Add(cameraResponsive:GetPropertyChangedSignal("ViewportSize"):Connect(updateLayoutMetrics))
+    end
+    windowMaid:Add(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        task.defer(function()
+            local camera = workspace.CurrentCamera
+            if camera then
+                windowMaid:Add(camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateLayoutMetrics))
+            end
+            updateLayoutMetrics()
+        end)
+    end))
 
     local Pages = {}
     local TabButtons = {}
@@ -566,7 +580,7 @@ function Library:CreateWindow(titleText, accentColor)
     local function makeCard(parent, height)
         local card = Instance.new("Frame")
         card.Size = UDim2.new(1, 0, 0, height)
-        surface(card, 11, {transparency = 0.22})
+        surface(card, 8, {transparency = 0.04, strokeTransparency = 0.72})
         card.Parent = parent
         return card
     end
@@ -1136,10 +1150,19 @@ function Library:CreateWindow(titleText, accentColor)
         end
     end)
 
-    -- Drag header while open. Do not allow controls to steal it through a global callback.
+    -- Dedicated drag zone: header buttons and title controls never steal drag ownership.
+    local DragHandle = Instance.new("TextButton")
+    DragHandle.Name = "DragHandle"
+    DragHandle.BackgroundTransparency = 1
+    DragHandle.BorderSizePixel = 0
+    DragHandle.Text = ""
+    DragHandle.AutoButtonColor = false
+    DragHandle.Position = UDim2.new(0, 0, 0, 0)
+    DragHandle.Size = UDim2.new(1, -108, 1, 0)
+    DragHandle.Parent = Header
     local headerDragOwner = {}
-    Header.InputBegan:Connect(function(input)
-        if not isOpen or closing then return end
+    DragHandle.InputBegan:Connect(function(input)
+        if not isOpen or closing or transitioning then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local startInput = input.Position
             local startPos = Main.Position
@@ -1225,5 +1248,11 @@ function Library:SetCustomFont(fontAssetId)
     end
     return true
 end
+
+Library.Compatibility = {
+    Version = "5.x",
+    PreservesV4API = true,
+    MobileFirst = true,
+}
 
 return Library
