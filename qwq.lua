@@ -444,6 +444,16 @@ function Library:CreateWindow(titleText, accentColor)
     bubbleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     bubbleLayout.Parent = Bubble
     local bubbleLogo = logoMark(Bubble, 24, accent)
+    local BubbleButton = Instance.new("TextButton")
+    BubbleButton.Name = "BubbleButton"
+    BubbleButton.Size = UDim2.fromScale(1, 1)
+    BubbleButton.BackgroundTransparency = 1
+    BubbleButton.BorderSizePixel = 0
+    BubbleButton.Text = ""
+    BubbleButton.AutoButtonColor = false
+    BubbleButton.Active = true
+    BubbleButton.ZIndex = 70
+    BubbleButton.Parent = Main
 
     local Content = Instance.new("Frame")
     Content.Size = UDim2.fromScale(1, 1)
@@ -1393,6 +1403,10 @@ function Library:CreateWindow(titleText, accentColor)
             }
         end
 
+        function API:CreateMultiSelectDropdown(text, options, callback)
+            return self:CreateMultiDropdown(text, options, callback)
+        end
+
         function API:CreateKeybind(text, default, callback)
             local current = default
             local listening = false
@@ -1996,12 +2010,16 @@ function Library:CreateWindow(titleText, accentColor)
     local dragOwner = {}
     local clickStart
     local dragStart
-    Main.InputBegan:Connect(function(input)
+    BubbleButton.Activated:Connect(function()
+        if isOpen or closing or transitioning then return end
+        openWindow()
+    end)
+    BubbleButton.InputBegan:Connect(function(input)
         if isOpen or closing or transitioning then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         clickStart = input.Position
         dragStart = Main.AbsolutePosition
-        if not beginPointer(dragOwner, input, function(moveInput)
+        beginPointer(dragOwner, input, function(moveInput)
             local delta = moveInput.Position - clickStart
             local size = Main.AbsoluteSize
             local target = UDim2.fromOffset(dragStart.X + delta.X, dragStart.Y + delta.Y)
@@ -2010,17 +2028,13 @@ function Library:CreateWindow(titleText, accentColor)
         end, function(endInput)
             if clickStart then
                 local moved = (endInput.Position - clickStart).Magnitude
-                if moved < Library.Config.TapThreshold then
-                    openWindow()
-                else
+                if moved >= Library.Config.TapThreshold then
                     floatingPosition = clampFloating(Main.Position, Main.AbsoluteSize)
                     snap(Main, { Position = floatingPosition })
                 end
             end
             clickStart, dragStart = nil, nil
-        end) then
-            clickStart, dragStart = nil, nil
-        end
+        end)
     end)
 
     local DragHandle = hitZone(Header)
@@ -2098,6 +2112,12 @@ function Library:CreateWindow(titleText, accentColor)
             end
         end
     end
+
+    task.defer(function()
+        if not closing and ScreenGui.Parent then
+            openWindow()
+        end
+    end)
 
     return Window
 end
