@@ -205,10 +205,15 @@ local function beginPointer(owner, input, move, ended)
 end
 
 local function endPointer(owner)
-    local input, session = sessionForOwner(owner)
-    if input then PointerSessions[input] = nil end
+    local removed
+    for input, session in pairs(PointerSessions) do
+        if session.owner == owner then
+            removed = session
+            PointerSessions[input] = nil
+        end
+    end
     if MouseOwner == owner then MouseOwner = nil end
-    return session
+    return removed
 end
 
 UserInputService.InputChanged:Connect(function(input)
@@ -226,8 +231,9 @@ end)
 local function releaseInput(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         if not MouseOwner then return end
-        local _, session = sessionForOwner(MouseOwner)
-        endPointer(MouseOwner)
+        local owner = MouseOwner
+        local _, session = sessionForOwner(owner)
+        endPointer(owner)
         if session and session.ended then pcall(session.ended, input) end
         return
     end
@@ -419,7 +425,7 @@ function Library:CreateWindow(titleText, accentColor)
     ScreenGui.ResetOnSpawn = false
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.DisplayOrder = 100
+    ScreenGui.DisplayOrder = 300
     ScreenGui.Parent = guiParent
     windowMaid:Add(ScreenGui)
 
@@ -687,7 +693,7 @@ function Library:CreateWindow(titleText, accentColor)
     IndicatorLayer.Size = TabsScroll.Size
     IndicatorLayer.BackgroundTransparency = 1
     IndicatorLayer.ClipsDescendants = true
-    IndicatorLayer.ZIndex = 40
+    IndicatorLayer.ZIndex = 18
     IndicatorLayer.Parent = Sidebar
 
     local TabIndicator = Instance.new("Frame")
@@ -697,7 +703,7 @@ function Library:CreateWindow(titleText, accentColor)
     TabIndicator.BackgroundColor3 = accent
     TabIndicator.BorderSizePixel = 0
     TabIndicator.Visible = false
-    TabIndicator.ZIndex = 41
+    TabIndicator.ZIndex = 19
     TabIndicator.Parent = IndicatorLayer
     addCorner(TabIndicator, 2)
 
@@ -852,9 +858,20 @@ function Library:CreateWindow(titleText, accentColor)
     end)
 
     local function selectTab(record)
-        if CurrentPage == record then return end
+        if not record or not record.page then return end
+        if CurrentPage == record then
+            record.page.Visible = true
+            record.page.Position = UDim2.fromOffset(0, 0)
+            return
+        end
 
         local previous = CurrentPage
+        local direction = 1
+        if previous then
+            local previousIndex = table.find(TabButtons, previous) or 1
+            local nextIndex = table.find(TabButtons, record) or previousIndex
+            direction = nextIndex >= previousIndex and 1 or -1
+        end
 
         for _, item in ipairs(TabButtons) do
             local active = item == record
@@ -880,15 +897,16 @@ function Library:CreateWindow(titleText, accentColor)
             local oldPage = previous.page
             local newPage = record.page
 
-            newPage.Position = UDim2.new(0, Library.Config.TabSlideOffset, 0, 0)
+            local offset = Library.Config.TabSlideOffset * direction
+            newPage.Position = UDim2.fromOffset(offset, 0)
             newPage.Visible = true
 
             tween(oldPage, Library.Config.TabSwitchDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                Position = UDim2.new(0, -Library.Config.TabSlideOffset, 0, 0),
+                Position = UDim2.fromOffset(-offset, 0),
             })
 
             tween(newPage, Library.Config.TabSwitchDuration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out, {
-                Position = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.fromOffset(0, 0),
             })
 
             task.delay(Library.Config.TabSwitchDuration, function()
@@ -1288,8 +1306,9 @@ function Library:CreateWindow(titleText, accentColor)
             optionsFrame.Size = UDim2.new(1, -40, 0, 0)
             optionsFrame.BackgroundTransparency = 1
             optionsFrame.BorderSizePixel = 0
-            optionsFrame.ScrollBarThickness = 2
+            optionsFrame.ScrollBarThickness = 0
             optionsFrame.ScrollBarImageColor3 = accent
+            optionsFrame.ZIndex = 50
             optionsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
             optionsFrame.ClipsDescendants = true
             optionsFrame.Parent = card
@@ -1327,6 +1346,9 @@ function Library:CreateWindow(titleText, accentColor)
                     b.TextSize = 10
                     b.TextXAlignment = Enum.TextXAlignment.Left
                     b.AutoButtonColor = false
+                    b.Active = true
+                    b.Selectable = false
+                    b.ZIndex = 51
                     font(b, Enum.FontWeight.Medium)
                     b.Parent = optionsFrame
                     addCorner(b, 4)
@@ -1447,6 +1469,9 @@ function Library:CreateWindow(titleText, accentColor)
                     row.BorderSizePixel = 0
                     row.Text = ""
                     row.AutoButtonColor = false
+                    row.Active = true
+                    row.Selectable = false
+                    row.ZIndex = 51
                     row.Parent = optionsFrame
                     addCorner(row, 4)
 
@@ -1479,7 +1504,7 @@ function Library:CreateWindow(titleText, accentColor)
                     row.Activated:Connect(function()
                         selected[key] = not selected[key]
                         updateSummary()
-                        task.defer(rebuild)
+                        rebuild()
                         safeCall(callback, getValues())
                     end)
                 end
@@ -1587,7 +1612,7 @@ function Library:CreateWindow(titleText, accentColor)
             local h, s, v = Color3.toHSV(current)
             local alphaValue = 0
 
-            local card, brackets, edge = makeCard(page, 220)
+            local card, brackets, edge = makeCard(page, 226)
             cardHover(card, brackets, edge)
 
             local label = createLabel(card, text, 11, Library.Theme.Text, Enum.FontWeight.SemiBold)
@@ -1683,6 +1708,7 @@ function Library:CreateWindow(titleText, accentColor)
             checker.Size = UDim2.fromScale(1, 1)
             checker.BackgroundColor3 = Library.Theme.Surface3
             checker.BorderSizePixel = 0
+            checker.ZIndex = 1
             checker.Parent = alphaBar
 
             local checkerGrad = Instance.new("UIGradient")
@@ -1699,6 +1725,7 @@ function Library:CreateWindow(titleText, accentColor)
             alphaOverlay.BackgroundColor3 = current
             alphaOverlay.BackgroundTransparency = 0
             alphaOverlay.BorderSizePixel = 0
+            alphaOverlay.ZIndex = 2
             alphaOverlay.Parent = alphaBar
 
             local alphaGrad = Instance.new("UIGradient")
@@ -1715,6 +1742,7 @@ function Library:CreateWindow(titleText, accentColor)
             alphaCursor.BackgroundColor3 = Color3.new(1, 1, 1)
             alphaCursor.BorderSizePixel = 0
             alphaCursor.ZIndex = 8
+            alphaCursor.ZIndex = 4
             alphaCursor.Parent = alphaBar
             addStroke(alphaCursor, Library.Theme.Text, 0.3, 2)
             addCorner(alphaCursor, 3)
@@ -2040,7 +2068,9 @@ function Library:CreateWindow(titleText, accentColor)
         button.BackgroundTransparency = 1
         button.Text = ""
         button.AutoButtonColor = false
-        button.ZIndex = 20
+        button.ZIndex = 25
+        button.Active = true
+        button.Selectable = false
         button.Parent = TabsScroll
         addCorner(button, 8)
         local tabIndex = createLabel(button, string.format("%02d", #TabButtons + 1), 8, Library.Theme.Muted, Enum.FontWeight.Bold)
@@ -2163,7 +2193,13 @@ function Library:CreateWindow(titleText, accentColor)
             BackgroundTransparency = 1,
             Rotation = 32,
         })
-        if t then t.Completed:Connect(function() windowMaid:Destroy() end) else windowMaid:Destroy() end
+        if t then
+            t.Completed:Connect(function()
+                if not windowMaid.dead then windowMaid:Destroy() end
+            end)
+        else
+            windowMaid:Destroy()
+        end
     end)
 
     local dragOwner = {}
@@ -2286,6 +2322,12 @@ function Library:CreateWindow(titleText, accentColor)
             end
         end
     end
+
+    task.defer(function()
+        if not closing and ScreenGui.Parent then
+            openWindow()
+        end
+    end)
 
     return Window
 end
